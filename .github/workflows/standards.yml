@@ -8,7 +8,7 @@ jobs:
     name: README structure
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: README stays minimal (screenshot, title, description, docs menu, license)
         run: |
           if [ ! -f README.md ]; then
