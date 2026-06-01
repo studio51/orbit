@@ -13,21 +13,19 @@
 import { DEG } from "./util.js";
 
 export class Projection {
+  #lastSun = -1e9;
+
   constructor() {
     this.d3proj = d3.geoOrthographic().clipAngle(90).precision(0.4);
-    this.path = d3.geoPath(this.d3proj);                                // geo-path strings for graticule/night
-    this._graticule = d3.geoGraticule().step([20, 20]);
-    this._night = d3.geoCircle().radius(90);                            // twilight edge
-    this._core = d3.geoCircle().radius(116);                            // deep-night core
     this.rotation = [-10, -25, 0];                                      // [lambda, phi, gamma]; start near Europe/Atlantic
+    this.antisolar = [180, 0];                                          // night-hemisphere centre; moved by updateSun()
 
     this.R = 0; this.cx = 0; this.cy = 0;
     this.lon0 = 0; this.sinLat0 = 0; this.cosLat0 = 1;
 
     this.sun = { lon: 0, sinLat: 0, cosLat: 1 };
-    this._lastSun = -1e9;
 
-    this._applyRotation();
+    this.setRotation(this.rotation[0], this.rotation[1], this.rotation[2]); // initial sync
   }
 
   setViewport(R, cx, cy) {
@@ -35,21 +33,15 @@ export class Projection {
     this.d3proj.scale(R).translate([cx, cy]);
   }
 
+  // Set the rotation and sync d3 + the cached fast-projection trig.
   setRotation(lambda, phi, gamma) {
     this.rotation[0] = lambda;
-    
     if (phi !== undefined) this.rotation[1] = phi;
     if (gamma !== undefined) this.rotation[2] = gamma;
-    
-    this._applyRotation();
-  }
 
-  _applyRotation() {
     this.d3proj.rotate(this.rotation);
     this.lon0 = -this.rotation[0] * DEG;
-  
     const lat0 = -this.rotation[1] * DEG;
-  
     this.sinLat0 = Math.sin(lat0);
     this.cosLat0 = Math.cos(lat0);
   }
@@ -66,15 +58,17 @@ export class Projection {
     return d3.geoDistance(lnglat, c) < Math.PI / 2 - 0.04;
   }
 
-  graticule() { return this._graticule(); }
-  nightShape() { return this._night(); }
-  coreShape() { return this._core(); }
+  // GeoJSON shapes for a d3.geoPath. The projection applies the rotation, so
+  // these depend only on fixed config (+ the antisolar centre for night/core).
+  graticule()  { return d3.geoGraticule().step([20, 20])(); }
+  nightShape() { return d3.geoCircle().radius(90).center(this.antisolar)(); }   // twilight edge
+  coreShape()  { return d3.geoCircle().radius(116).center(this.antisolar)(); }  // deep-night core
 
   // Real subsolar point from the clock; recomputed ~1/s (the sun barely moves).
   updateSun(now) {
-    if (now - this._lastSun < 1000) return;
-    
-    this._lastSun = now;
+    if (now - this.#lastSun < 1000) return;
+
+    this.#lastSun = now;
     
     const dt = new Date();
     const utc = dt.getUTCHours() + dt.getUTCMinutes() / 60 + dt.getUTCSeconds() / 3600;
@@ -87,7 +81,6 @@ export class Projection {
     this.sun.sinLat = Math.sin(declDeg * DEG);
     this.sun.cosLat = Math.cos(declDeg * DEG);
 
-    this._night.center([lonDeg + 180, -declDeg]);
-    this._core.center([lonDeg + 180, -declDeg]);
+    this.antisolar = [lonDeg + 180, -declDeg];
   }
 }

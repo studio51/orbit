@@ -5,11 +5,15 @@
  * the sun, and the per-activity counters. A renderer subclasses this and fills in
  * five small hooks for the bits that genuinely differ between Canvas and SVG:
  *
- *   _viewportRect()   → the element's bounding rect (sizing source)
- *   _resizeBackend()  → size the canvas / set the SVG viewBox
- *   _dragTarget()     → the element drag listeners attach to
- *   _render()         → paint one frame (canvas clears+draws; svg mutates nodes)
- *   applyScene()      → map scene → element styles (no-op for canvas)
+ *   viewportRect()   → the element's bounding rect (sizing source)
+ *   resizeBackend()  → size the canvas / set the SVG viewBox
+ *   dragTarget()     → the element drag listeners attach to
+ *   renderFrame()    → paint one frame (canvas clears+draws; svg mutates nodes)
+ *   applyScene()     → map scene → element styles (no-op for canvas)
+ *
+ * Members written with `#` are true private state — internal to the engine and
+ * not part of the API. The hooks above are deliberately public: they're the
+ * subclass extension surface (`#`-private methods can't be overridden).
  *
  * Layer contract:
  *   { name, z, rebuildOn?, build?(e), resize?(e), simulate?(e), visible?(e), draw(e) }
@@ -19,6 +23,13 @@ import { SCENE_DEFAULTS } from "./config.js";
 import { ACTIVITY_TYPES } from "./data.js";
 
 export class BaseEngine {
+  #handlers = {};
+  #byName = {};
+  #hooks = [];
+  #drag = { active: false, x: 0, y: 0 };
+  #spawnAcc = 0;
+  #last = 0;
+
   constructor({ scene, sim, data }) {
     this.scene = scene || { ...SCENE_DEFAULTS };
     this.sim = sim;
@@ -36,32 +47,25 @@ export class BaseEngine {
     // viewport (CSS px)
     this.W = 0; this.H = 0; this.CX = 0; this.CY = 0; this.R = 0; this.dpr = 1;
 
-    // clock
+    // clock + per-frame shared values
     this.now = 0; this.dt = 0; this.frameCount = 0;
-    this._last = 0; this._spawnAcc = 0;
-
-    // per-frame shared values
     this.hq = null; this.hqVisible = false;
 
-    this._drag = { active: false, x: 0, y: 0 };
     this.layers = [];
-    this._byName = {};
-    this._handlers = {};
-    this._hooks = [];
   }
 
   // ---- events --------------------------------------------------------
-  on(evt, fn) { (this._handlers[evt] || (this._handlers[evt] = [])).push(fn); }
-  emit(evt, payload) { const h = this._handlers[evt]; if (h) for (const fn of h) fn(payload); }
+  on(evt, fn) { (this.#handlers[evt] || (this.#handlers[evt] = [])).push(fn); }
+  emit(evt, payload) { const h = this.#handlers[evt]; if (h) for (const fn of h) fn(payload); }
 
   // ---- layers --------------------------------------------------------
   register(layer) {
     this.layers.push(layer);
-    this._byName[layer.name] = layer;
+    this.#byName[layer.name] = layer;
     this.layers.sort((a, b) => a.z - b.z);
     return layer;
   }
-  layer(name) { return this._byName[name]; }
+  layer(name) { return this.#byName[name]; }
   build() { for (const l of this.layers) l.build && l.build(this); }
   resizeLayers() { for (const l of this.layers) l.resize && l.resize(this); }
   rebuildFor(key) {
@@ -71,17 +75,17 @@ export class BaseEngine {
   }
 
   // ---- per-activity counters ----------------------------------------
-  onCount(fn) { this._hooks.push(fn); }
-  bump(id) { for (const fn of this._hooks) fn(id); }
+  onCount(fn) { this.#hooks.push(fn); }
+  bump(id) { for (const fn of this.#hooks) fn(id); }
 
   // ---- viewport ------------------------------------------------------
   resize() {
-    const rect = this._viewportRect();
+    const rect = this.viewportRect();
     this.W = rect.width; this.H = rect.height;
     this.CX = this.W * 0.5; this.CY = this.H * 0.5;
     this.R = Math.min(this.W, this.H) * 0.36;
     this.dpr = Math.min(2, window.devicePixelRatio || 1);
-    this._resizeBackend();
+    this.resizeBackend();
     this.proj.setViewport(this.R, this.CX, this.CY);
     this.resizeLayers();
   }
@@ -92,27 +96,27 @@ export class BaseEngine {
     this.resize();         // size the viewport, then position layers
     this.applyScene();     // map scene → element styles (svg only)
     window.addEventListener("resize", () => this.resize());
-    this._bindDrag();
+    this.#bindDrag();
     this.proj.setRotation(this.rotation[0], this.rotation[1], this.rotation[2]);
     this.proj.updateSun(performance.now());
-    requestAnimationFrame((t) => { this._last = t; this._frame(t); });
+    requestAnimationFrame((t) => { this.#last = t; this.#frame(t); });
   }
 
-  _frame(now) {
-    const dt = Math.min(0.05, (now - this._last) / 1000);
-    this._last = now; this.now = now; this.dt = dt; this.frameCount++;
+  #frame(now) {
+    const dt = Math.min(0.05, (now - this.#last) / 1000);
+    this.#last = now; this.now = now; this.dt = dt; this.frameCount++;
 
     const sim = this.sim;
     if (!sim.paused) {
-      if (!this._drag.active) {
+      if (!this.#drag.active) {
         this.rotation[0] += sim.rotSpeed * dt;
         if (this.rotation[0] > 180) this.rotation[0] -= 360;
         if (this.rotation[0] < -180) this.rotation[0] += 360;
       }
-      this._spawnAcc += dt * sim.rate;
+      this.#spawnAcc += dt * sim.rate;
       let guard = 0;
-      const beams = this._byName.beams;
-      while (this._spawnAcc >= 1 && guard < 12) { beams && beams.spawn(this); this._spawnAcc -= 1; guard++; }
+      const beams = this.#byName.beams;
+      while (this.#spawnAcc >= 1 && guard < 12) { beams && beams.spawn(this); this.#spawnAcc -= 1; guard++; }
     }
     this.proj.setRotation(this.rotation[0], this.rotation[1], this.rotation[2]);
     this.proj.updateSun(now);
@@ -121,15 +125,15 @@ export class BaseEngine {
     this.hqVisible = !!this.hq && this.proj.visible(this.data.HQ.lnglat);
 
     for (const l of this.layers) l.simulate && l.simulate(this);
-    this._render();
+    this.renderFrame();
 
     if (this.fps) this.fps.tick(now);
-    requestAnimationFrame((t) => this._frame(t));
+    requestAnimationFrame((t) => this.#frame(t));
   }
 
   // ---- drag to spin --------------------------------------------------
-  _bindDrag() {
-    const c = this._dragTarget(), d = this._drag;
+  #bindDrag() {
+    const c = this.dragTarget(), d = this.#drag;
     const pt = (e) => (e.touches ? e.touches[0] : e);
     const down = (e) => { d.active = true; const p = pt(e); d.x = p.clientX; d.y = p.clientY; c.classList.add("grabbing"); e.preventDefault(); };
     const move = (e) => {
@@ -149,9 +153,9 @@ export class BaseEngine {
   }
 
   // ---- backend hooks (overridden by subclasses) ---------------------
-  _viewportRect() { throw new Error("_viewportRect not implemented"); }
-  _resizeBackend() {}
-  _dragTarget() { throw new Error("_dragTarget not implemented"); }
-  _render() { throw new Error("_render not implemented"); }
+  viewportRect() { throw new Error("viewportRect not implemented"); }
+  resizeBackend() {}
+  dragTarget() { throw new Error("dragTarget not implemented"); }
+  renderFrame() { throw new Error("renderFrame not implemented"); }
   applyScene() {}
 }

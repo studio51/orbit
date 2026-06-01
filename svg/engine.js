@@ -1,7 +1,7 @@
 /* games.directory globe — SVG engine
  *
  * Thin subclass of BaseEngine (shared/engine.js). The SVG-specific hooks: nodes
- * persist between frames (no clear), so _render() just lets every layer mutate
+ * persist between frames (no clear), so renderFrame() just lets every layer mutate
  * its nodes, and applyScene() maps scene flags → element display/opacity.
  *
  * Depends on the global `d3` (geoPath for graticule/terminator strings).
@@ -26,10 +26,10 @@ export class Engine extends BaseEngine {
     this.pathGen = d3.geoPath(this.proj.d3proj); // geo-path strings for graticule/night
   }
 
-  _viewportRect() { return this.svg.getBoundingClientRect(); }
-  _resizeBackend() { this.svg.setAttribute("viewBox", `0 0 ${this.W} ${this.H}`); }
-  _dragTarget() { return this.svg; }
-  _render() { for (const l of this.layers) l.draw(this); }
+  viewportRect() { return this.svg.getBoundingClientRect(); }
+  resizeBackend() { this.svg.setAttribute("viewBox", `0 0 ${this.W} ${this.H}`); }
+  dragTarget() { return this.svg; }
+  renderFrame() { for (const l of this.layers) l.draw(this); }
 
   // ---- scene → SVG element styles/display ---------------------------
   applyScene() {

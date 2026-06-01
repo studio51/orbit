@@ -154,14 +154,16 @@ export function sphereLayer() {
 // ======================================================================
 // Orbital rings — split front/back around the globe (geometry shared)
 // ======================================================================
+// Memoised per frame so the back + front orbit layers share one computation.
+let orbitCache = null, orbitCacheFrame = -1;
 function getOrbits(e) {
-  if (e._orbitsAt === e.frameCount) return e._orbits;
-  e._orbits = ORBIT_DEFS.map((cfg, o) => {
+  if (orbitCacheFrame === e.frameCount) return orbitCache;
+  orbitCache = ORBIT_DEFS.map((cfg, o) => {
     const g = computeOrbit(cfg, o, e.R, e.CX, e.CY, e.now);
     return { front: pathFromSegments(g.front), back: pathFromSegments(g.back), sat: g.sat };
   });
-  e._orbitsAt = e.frameCount;
-  return e._orbits;
+  orbitCacheFrame = e.frameCount;
+  return orbitCache;
 }
 export function orbitsBackLayer() {
   return {
