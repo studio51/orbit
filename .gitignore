@@ -1,0 +1,9 @@
+# Studio51 · js-vanilla
+.DS_Store
+*.log
+node_modules/
+.cache/
+dist/
+.env
+.env.*
+!.env.example

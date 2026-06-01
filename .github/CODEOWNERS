@@ -1,0 +1,3 @@
+# Studio51 standard: default owners for everything in the repo.
+# Adjust per-path as the team grows.
+*       @studio51/maintainers
