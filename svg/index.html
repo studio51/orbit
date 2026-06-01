@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>games.directory · Activity Globe (SVG)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/ui.css">
+<link rel="stylesheet" href="scene.css">
+</head>
+<body>
+  <div class="stars"></div>
+  <div class="stars stars2"></div>
+
+  <div class="stage">
+    <svg id="globe-svg" aria-label="Rotating globe of live games.directory activity">
+      <defs>
+        <radialGradient id="sphere-grad" cx="40%" cy="36%" r="75%">
+          <stop offset="0%" stop-color="#0e1d33"/>
+          <stop offset="55%" stop-color="#070f1f"/>
+          <stop offset="100%" stop-color="#02040a"/>
+        </radialGradient>
+        <radialGradient id="bottom-glow-grad" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="rgba(180,215,255,.55)"/>
+          <stop offset="40%" stop-color="rgba(120,170,255,.18)"/>
+          <stop offset="100%" stop-color="rgba(0,0,0,0)"/>
+        </radialGradient>
+        <radialGradient id="highlight-grad" cx="32%" cy="30%" r="60%">
+          <stop offset="0%" stop-color="rgba(120,180,255,.20)"/>
+          <stop offset="45%" stop-color="rgba(120,180,255,.04)"/>
+          <stop offset="100%" stop-color="rgba(0,0,0,0)"/>
+        </radialGradient>
+        <linearGradient id="atmos" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#5ad1ff"/>
+          <stop offset="100%" stop-color="#7c6bff"/>
+        </linearGradient>
+        <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
+          <feGaussianBlur stdDeviation="8"/>
+        </filter>
+        <filter id="dot-glow" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation=".6"/>
+        </filter>
+        <filter id="beam-blur" x="-60%" y="-60%" width="220%" height="220%">
+          <feGaussianBlur stdDeviation="4.5"/>
+        </filter>
+        <filter id="beam-glow-f" x="-60%" y="-60%" width="220%" height="220%">
+          <feGaussianBlur stdDeviation="1.4"/>
+        </filter>
+        <clipPath id="globe-clip"><circle id="clip-circle"></circle></clipPath>
+        <filter id="night-soft" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="6"/>
+        </filter>
+        <filter id="aurora-soft" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="4"/>
+        </filter>
+      </defs>
+
+      <g id="shooting"></g>
+      <circle id="sphere-glow"></circle>
+      <ellipse id="bottom-glow"></ellipse>
+      <g id="orbits-back"></g>
+      <circle id="sphere"></circle>
+      <circle id="sphere-highlight"></circle>
+      <path id="spikes"></path>
+      <path id="graticule"></path>
+      <g id="land-dots">
+        <path id="land-s"></path>
+        <path id="land-m"></path>
+        <path id="land-l"></path>
+      </g>
+      <path id="night"></path>
+      <path id="night-core"></path>
+      <g id="citylights">
+        <path class="city-l" id="city-0"></path>
+        <path class="city-l" id="city-1"></path>
+        <path class="city-l" id="city-2"></path>
+      </g>
+      <g id="aurora">
+        <path class="aur aur-g" id="aur-n-g"></path>
+        <path class="aur aur-v" id="aur-n-v"></path>
+        <path class="aur aur-g" id="aur-s-g"></path>
+        <path class="aur aur-v" id="aur-s-v"></path>
+      </g>
+      <g id="nodes"></g>
+      <g id="orbits-front"></g>
+      <g id="beams"></g>
+      <g id="impacts"></g>
+      <g id="fireworks"></g>
+      <g id="hq"></g>
+    </svg>
+  </div>
+
+  <div class="brand">
+    <div class="mark">
+      <div class="glyph">g</div>
+      <div class="name"><b>games</b>.directory</div>
+    </div>
+    <div class="tag">Live activity · worldwide</div>
+  </div>
+
+  <aside class="ticker" id="ticker" aria-hidden="true"></aside>
+
+  <aside class="panel">
+    <div class="panel-head">
+      <span class="live"><span class="blip"></span>LIVE FEED</span>
+    </div>
+    <div class="total">
+      <span id="total-count">0</span>
+      <span class="total-lbl">activities streamed</span>
+    </div>
+
+    <div id="activity-list"></div>
+
+    <div class="divider"></div>
+
+    <div class="ctrl">
+      <div class="ctrl-top"><label for="rate">Activity rate</label><span class="val" id="rate-val">3.0/s</span></div>
+      <input type="range" id="rate" min="0.2" max="14" step="0.1">
+    </div>
+    <div class="ctrl">
+      <div class="ctrl-top"><label for="rot">Rotation speed</label><span class="val" id="rot-val">6°/s</span></div>
+      <input type="range" id="rot" min="0" max="30" step="1">
+    </div>
+
+    <div class="row-btns">
+      <button class="btn" id="pause">
+        <svg class="ico pp-pause" viewBox="0 0 12 12"><rect x="1.5" y="1" width="3" height="10" rx="1" fill="currentColor"/><rect x="7.5" y="1" width="3" height="10" rx="1" fill="currentColor"/></svg>
+        <svg class="ico pp-play" viewBox="0 0 12 12"><path d="M2 1l9 5-9 5z" fill="currentColor"/></svg>
+        <span class="pp-label">Pause</span>
+      </button>
+    </div>
+    <div class="fw-row">
+      <button class="eye" id="fw-toggle" aria-pressed="true" title="Toggle fireworks"><span class="eye-dot"></span></button>
+      <span class="fw-label">Fireworks on</span>
+      <select id="fw-trigger" class="fw-select" title="Activity that sets off fireworks"></select>
+    </div>
+    <div class="hint">drag the globe to spin · tap a swatch to recolour</div>
+
+    <button class="scene-expander" id="scene-toggle" aria-pressed="false" aria-controls="scene">
+      <svg class="gear-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+      <span class="se-label">Scene &amp; effects</span>
+      <svg class="chev" viewBox="0 0 12 12"><path d="M2 4l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <div class="scene" id="scene" hidden></div>
+  </aside>
+
+  <div id="loading"><div><div class="spinner"></div>loading world map…</div></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js"></script>
+  <script type="module" src="main.js"></script>
+</body>
+</html>

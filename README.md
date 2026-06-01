@@ -9,7 +9,12 @@ This repo is that globe **extracted from games.directory as a standalone,
 self-contained widget** — a drop-in "plugin" with no dependencies on the rest
 of the site. Anyone can clone it, open it in a browser, and play with the live
 controls, or drop it into their own landing page and point it at their own HQ,
-cities, and activity types (see [`data.js`](data.js)).
+cities, and activity types (see [`shared/data.js`](shared/data.js)).
+
+It ships **rendered two ways** — a **Canvas 2D** build and an **SVG** build —
+over a shared core, so the two strategies can be compared head-to-head. See
+[`COMPARISON.md`](COMPARISON.md). Canvas is the recommended one (highest, most
+stable frame rate); SVG keeps the original vector-crisp look.
 
 ## Core visualization
 
@@ -42,27 +47,48 @@ sections — Texture, Atmosphere, Day & night, Aurora, Effects, and Cosmos — s
 the spectacle can be dialed in for the landing page. Panel state and
 open/closed preference persist across reloads (via `localStorage`).
 
-## Tech
+## Architecture
 
-Self-contained HTML + JS — no build step. D3 geo for the projection, SVG for
-the beams and effects, CSS for the starfield and atmosphere.
+ES modules, no build step. A small **layer-registry engine** owns the viewport,
+clock, rotation, drag, sun and an event bus; every visual element is a
+self-contained **layer** (`{ name, z, build, resize, simulate, draw }`) drawn in
+z-order. Adding an effect = write a factory in `layers.js` and register it.
 
-| File         | Role                                                              |
-| ------------ | ----------------------------------------------------------------- |
-| `index.html` | Markup, styles, and SVG scaffold for the scene.                   |
-| `globe.js`   | Rendering engine — projection, land dots, beams, effects, panel.  |
-| `data.js`    | HQ location, activity types, and real-world city coordinates.     |
+```
+index.html        chooser + side-by-side compare
+shared/           used by BOTH renderers
+  data.js         HQ, activity types, cities — the file you edit to customise
+  config.js       scene defaults, panel spec, persistence
+  geo.js          Projection (d3.geoOrthographic) + fast projection + sun
+  util.js         easing / colour / weighted pick
+  ui.js           scene panel, activity list, controls, ticker (pure DOM)
+  fps.js          live FPS meter
+  ui.css          shared chrome styling
+canvas/           Canvas2D engine + layers + entry   ← recommended
+svg/              SVG engine + layers + entry         (modularised original)
+legacy/           the original single-file version, kept for reference
+```
 
-D3 v7 and `topojson-client` are loaded from a CDN; world landmass topology
-(`world-atlas`) is fetched at runtime, with fallback CDNs.
+D3 v7 and `topojson-client` load from a CDN; world landmass topology
+(`world-atlas`) is fetched at runtime with fallback CDNs.
+
+## Customising & extending
+
+- **Make it yours:** edit [`shared/data.js`](shared/data.js) — HQ location,
+  cities, activity types (label / colour / weight). No other file needs touching.
+- **Tune the look:** use the in-app **Scene & effects** panel (it persists), or
+  change the defaults in [`shared/config.js`](shared/config.js).
+- **Add an effect:** add a layer factory to `canvas/layers.js` (and/or
+  `svg/layers.js`) and register it in `registerDefaultLayers()`.
 
 ## Running
 
-No build or server is strictly required, but the runtime `fetch` of the world
-map needs an `http(s)://` origin (browsers block `fetch` from `file://`). Serve
-the directory with any static server:
+A static server is required — the world map is fetched at runtime, and ES
+modules don't load from `file://`:
 
 ```sh
 python3 -m http.server 8000
 # then open http://localhost:8000
 ```
+
+Open the chooser at `/`, or go straight to `/canvas/` or `/svg/`.

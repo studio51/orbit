@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>games.directory · Activity Globe (Canvas)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/ui.css">
+<link rel="stylesheet" href="canvas.css">
+</head>
+<body>
+  <div class="stars"></div>
+  <div class="stars stars2"></div>
+
+  <div class="stage">
+    <canvas id="globe-canvas" aria-label="Rotating globe of live games.directory activity"></canvas>
+  </div>
+
+  <div class="brand">
+    <div class="mark">
+      <div class="glyph">g</div>
+      <div class="name"><b>games</b>.directory</div>
+    </div>
+    <div class="tag">Live activity · worldwide</div>
+  </div>
+
+  <aside class="ticker" id="ticker" aria-hidden="true"></aside>
+
+  <aside class="panel">
+    <div class="panel-head">
+      <span class="live"><span class="blip"></span>LIVE FEED</span>
+    </div>
+    <div class="total">
+      <span id="total-count">0</span>
+      <span class="total-lbl">activities streamed</span>
+    </div>
+
+    <div id="activity-list"></div>
+
+    <div class="divider"></div>
+
+    <div class="ctrl">
+      <div class="ctrl-top"><label for="rate">Activity rate</label><span class="val" id="rate-val">3.0/s</span></div>
+      <input type="range" id="rate" min="0.2" max="14" step="0.1">
+    </div>
+    <div class="ctrl">
+      <div class="ctrl-top"><label for="rot">Rotation speed</label><span class="val" id="rot-val">6°/s</span></div>
+      <input type="range" id="rot" min="0" max="30" step="1">
+    </div>
+
+    <div class="row-btns">
+      <button class="btn" id="pause">
+        <svg class="ico pp-pause" viewBox="0 0 12 12"><rect x="1.5" y="1" width="3" height="10" rx="1" fill="currentColor"/><rect x="7.5" y="1" width="3" height="10" rx="1" fill="currentColor"/></svg>
+        <svg class="ico pp-play" viewBox="0 0 12 12"><path d="M2 1l9 5-9 5z" fill="currentColor"/></svg>
+        <span class="pp-label">Pause</span>
+      </button>
+    </div>
+    <div class="fw-row">
+      <button class="eye" id="fw-toggle" aria-pressed="true" title="Toggle fireworks"><span class="eye-dot"></span></button>
+      <span class="fw-label">Fireworks on</span>
+      <select id="fw-trigger" class="fw-select" title="Activity that sets off fireworks"></select>
+    </div>
+    <div class="hint">drag the globe to spin · tap a swatch to recolour</div>
+
+    <button class="scene-expander" id="scene-toggle" aria-pressed="false" aria-controls="scene">
+      <svg class="gear-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+      <span class="se-label">Scene &amp; effects</span>
+      <svg class="chev" viewBox="0 0 12 12"><path d="M2 4l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <div class="scene" id="scene" hidden></div>
+  </aside>
+
+  <div id="loading"><div><div class="spinner"></div>loading world map…</div></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js"></script>
+  <script type="module" src="main.js"></script>
+</body>
+</html>

@@ -3,413 +3,147 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>games.directory · Live Activity Globe</title>
+<title>games.directory · Activity Globe — Canvas vs SVG</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#05060c;
-    --ink:#eaf0ff;
-    --muted:#8a93b2;
-    --line:rgba(140,160,210,.14);
-    --panel:rgba(14,18,32,.72);
-    --panel-brd:rgba(150,170,220,.16);
-    --accent:#5ad1ff;
-    --land:#3f6ea8;
-    --land-bright:#7fd7ff;
-    --sans:"Space Grotesk",system-ui,sans-serif;
-    --mono:"JetBrains Mono",ui-monospace,monospace;
+    --bg:#05060c; --ink:#eaf0ff; --muted:#8a93b2; --accent:#5ad1ff;
+    --line:rgba(140,160,210,.16); --panel:rgba(14,18,32,.7);
+    --sans:"Space Grotesk",system-ui,sans-serif; --mono:"JetBrains Mono",ui-monospace,monospace;
   }
   *{box-sizing:border-box}
-  html,body{margin:0;height:100%}
+  html,body{margin:0;min-height:100%}
   body{
     background:
-      radial-gradient(1200px 800px at 70% -10%, rgba(40,70,130,.22), transparent 60%),
-      radial-gradient(900px 700px at 15% 110%, rgba(70,40,120,.18), transparent 55%),
+      radial-gradient(1200px 800px at 70% -10%, rgba(40,70,130,.25), transparent 60%),
+      radial-gradient(900px 700px at 15% 110%, rgba(70,40,120,.2), transparent 55%),
       var(--bg);
-    color:var(--ink);
-    font-family:var(--sans);
-    overflow:hidden;
-    -webkit-font-smoothing:antialiased;
-  }
-  /* faint starfield */
-  .stars{position:fixed;inset:-8%;pointer-events:none;opacity:.6;
-    background-image:
-      radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,.7), transparent),
-      radial-gradient(1px 1px at 80% 20%, rgba(255,255,255,.5), transparent),
-      radial-gradient(1px 1px at 60% 70%, rgba(255,255,255,.45), transparent),
-      radial-gradient(1px 1px at 35% 80%, rgba(255,255,255,.5), transparent),
-      radial-gradient(1.4px 1.4px at 90% 60%, rgba(255,255,255,.55), transparent),
-      radial-gradient(1px 1px at 10% 65%, rgba(255,255,255,.4), transparent),
-      radial-gradient(1.2px 1.2px at 50% 12%, rgba(255,255,255,.5), transparent);}
-  .stars2{opacity:.42;
-    background-image:
-      radial-gradient(1px 1px at 12% 18%, rgba(255,255,255,.6), transparent),
-      radial-gradient(1.3px 1.3px at 72% 42%, rgba(200,224,255,.7), transparent),
-      radial-gradient(1px 1px at 44% 58%, rgba(255,255,255,.5), transparent),
-      radial-gradient(1px 1px at 88% 84%, rgba(255,255,255,.45), transparent),
-      radial-gradient(1.1px 1.1px at 28% 90%, rgba(255,255,255,.5), transparent),
-      radial-gradient(1px 1px at 64% 8%, rgba(255,255,255,.45), transparent);}
-  @keyframes drift1{from{transform:translate3d(0,0,0)}to{transform:translate3d(-2%,1.5%,0)}}
-  @keyframes drift2{from{transform:translate3d(0,0,0)}to{transform:translate3d(2.4%,-1.8%,0)}}
-  @keyframes tw1{0%,100%{opacity:.6}50%{opacity:.34}}
-  @keyframes tw2{0%,100%{opacity:.42}50%{opacity:.68}}
+    color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;
+    min-height:100vh;display:flex;flex-direction:column}
 
-  .stage{position:fixed;inset:0}
-  #globe-svg{width:100%;height:100%;display:block;cursor:grab;touch-action:none}
-  #globe-svg.grabbing{cursor:grabbing}
-
-  /* sphere */
-  #sphere{fill:url(#sphere-grad)}
-  #sphere-glow{fill:none;stroke:url(#atmos);stroke-width:14;filter:url(#soft);opacity:.7}
-  #sphere-highlight{fill:url(#highlight-grad);pointer-events:none}
-  #bottom-glow{fill:url(#bottom-glow-grad);filter:url(#soft);pointer-events:none}
-  #graticule{fill:none;stroke:var(--line);stroke-width:.6;opacity:.5}
-  #spikes{fill:none;stroke:#9fc6ff;stroke-width:.6;stroke-linecap:round;opacity:.1;mix-blend-mode:screen}
-  #land-dots{mix-blend-mode:screen}
-  #land-dots path{fill:none;stroke:#bfe0ff;stroke-linecap:round}
-  #land-s{stroke-width:2.3;opacity:.8}
-  #land-m{stroke-width:2.9;opacity:.92}
-  #land-l{stroke-width:3.6;opacity:1}
-  /* day / night terminator: two graduated layers for a soft twilight → deep-night falloff */
-  #night,#night-core{fill:#03060f;filter:url(#night-soft);clip-path:url(#globe-clip);pointer-events:none}
-  #night{opacity:.3}
-  #night-core{opacity:.32}
-  /* golden city lights glowing on the night side */
-  #citylights{mix-blend-mode:screen;pointer-events:none}
-  .city-l{fill:none;stroke:#ffcf73;stroke-width:3.1;stroke-linecap:round}
-  /* polar auroras */
-  #aurora{mix-blend-mode:screen;pointer-events:none;filter:url(#aurora-soft)}
-  .aur{fill:none;stroke-linecap:round}
-  /* shooting stars / meteors */
-  #shooting{mix-blend-mode:screen;pointer-events:none}
-  .met-trail{stroke-linecap:round;fill:none}
-  .met-head{fill:#fff}
-  .aur-g{stroke:#5cffb0;stroke-width:5.5}
-  .aur-v{stroke:#b58cff;stroke-width:3.5}
-  #nodes{mix-blend-mode:screen}
-  .node{fill:#eaf4ff}
-  #orbits-front path{fill:none;stroke:#bcd6ff;stroke-width:.85;opacity:.5;mix-blend-mode:screen}
-  #orbits-back path{fill:none;stroke:#6f9bd6;stroke-width:.7;opacity:.16}
-  .orbit-sat{fill:#cce6ff}
-
-  /* beams — glow built from layered strokes + screen blend (no per-frame filters) */
-  #beams{mix-blend-mode:screen}
-  .beam-glow{fill:none;stroke-width:11;stroke-linecap:round;opacity:.22}
-  .beam-core{fill:none;stroke-width:2.6;stroke-linecap:round;opacity:.95}
-  .beam-hot{fill:none;stroke:#fff;stroke-width:1;stroke-linecap:round;opacity:.9}
-  .beam-spark{fill:none;stroke-width:4.2;stroke-linecap:round;opacity:.9;mix-blend-mode:screen;
-    filter:drop-shadow(0 0 5px #fff)}
-  .beam-head{filter:drop-shadow(0 0 6px #fff)}
-
-  .impact{fill:none;stroke-width:1.6}
-  .impact-burst{filter:url(#beam-glow-f)}
-
-  /* dramatic beam for the fireworks-trigger activity */
-  .beam-special .beam-glow{stroke-width:13;opacity:.55}
-  .beam-special .beam-core{stroke-width:3.4}
-  .beam-special .beam-hot{stroke-width:1.5}
-  /* fireworks */
-  .fw-flash{filter:drop-shadow(0 0 16px #fff)}
-  .fw-spark{will-change:transform,opacity}
-
-  /* HQ */
-  .hq-dot{fill:#fff;filter:drop-shadow(0 0 7px #fff)}
-  .hq-ring{fill:none;stroke:#fff;stroke-width:1.4;transform-box:fill-box;transform-origin:center;
-    animation:hqpulse 2.6s ease-out infinite}
-  .hq-ring-2{animation-delay:1.3s}
-  @keyframes hqpulse{0%{r:5;opacity:.9}100%{r:34px;opacity:0}}
-  .hq-label-text{font-family:var(--sans);font-weight:600;font-size:14px;fill:#fff;
-    paint-order:stroke;stroke:rgba(5,6,12,.8);stroke-width:3.5px}
-  .hq-label-sub{font-family:var(--mono);font-size:11px;fill:var(--accent);
-    paint-order:stroke;stroke:rgba(5,6,12,.8);stroke-width:3.5px;letter-spacing:.04em}
-
-  /* brand mark */
-  .brand{position:fixed;top:26px;left:30px;z-index:5}
-  .brand .mark{display:flex;align-items:center;gap:11px}
-  .brand .glyph{width:30px;height:30px;border-radius:8px;
-    background:linear-gradient(140deg,#5ad1ff,#7c6bff);
-    display:grid;place-items:center;color:#04060e;font-weight:700;font-size:17px;
+  /* ---- chooser (default view) ---- */
+  .wrap{max-width:920px;margin:0 auto;padding:8vh 24px 6vh;flex:1;width:100%}
+  .brand{display:flex;align-items:center;gap:12px;margin-bottom:30px}
+  .glyph{width:34px;height:34px;border-radius:9px;background:linear-gradient(140deg,#5ad1ff,#7c6bff);
+    display:grid;place-items:center;color:#04060e;font-weight:700;font-size:19px;
     box-shadow:0 6px 24px rgba(90,140,255,.35)}
-  .brand .name{font-weight:600;font-size:18px;letter-spacing:-.01em}
-  .brand .name b{color:var(--accent);font-weight:600}
-  .brand .tag{margin:7px 0 0 41px;font-family:var(--mono);font-size:11px;color:var(--muted);
-    letter-spacing:.06em;text-transform:uppercase}
+  .brand .name{font-weight:600;font-size:20px}.brand .name b{color:var(--accent);font-weight:600}
+  h1{font-size:clamp(28px,5vw,46px);line-height:1.08;letter-spacing:-.02em;margin:0 0 14px;font-weight:700}
+  h1 .grad{background:linear-gradient(120deg,#7fd7ff,#b58cff);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .lede{font-size:16px;color:var(--muted);max-width:620px;line-height:1.6;margin:0 0 38px}
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .card{display:block;text-decoration:none;color:inherit;background:var(--panel);
+    border:1px solid var(--line);border-radius:18px;padding:24px;transition:.18s;position:relative;overflow:hidden}
+  .card:hover{border-color:var(--accent);transform:translateY(-3px);box-shadow:0 24px 60px rgba(0,0,0,.45)}
+  .card .tag{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
+  .card h2{font-size:21px;margin:10px 0 8px;font-weight:600}
+  .card p{font-size:13.5px;color:var(--muted);line-height:1.55;margin:0 0 14px}
+  .card .meta{font-family:var(--mono);font-size:11.5px;color:var(--ink);display:flex;gap:8px;flex-wrap:wrap}
+  .card .meta span{background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:7px;padding:3px 8px}
+  .card.recommend::after{content:"recommended";position:absolute;top:16px;right:-30px;transform:rotate(45deg);
+    background:linear-gradient(120deg,#5ad1ff,#7c6bff);color:#04060e;font-family:var(--mono);font-size:9.5px;
+    letter-spacing:.1em;text-transform:uppercase;padding:4px 36px;font-weight:600}
+  .actions{margin-top:26px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  .btn{appearance:none;cursor:pointer;font-family:var(--sans);font-size:14px;font-weight:500;
+    border-radius:11px;padding:12px 20px;border:1px solid var(--line);background:rgba(255,255,255,.04);
+    color:var(--ink);transition:.15s;text-decoration:none;display:inline-flex;align-items:center;gap:8px}
+  .btn:hover{border-color:var(--accent);background:rgba(90,209,255,.08)}
+  .btn.primary{background:linear-gradient(120deg,#5ad1ff,#7c6bff);color:#04060e;border:0;font-weight:600}
+  .foot{font-family:var(--mono);font-size:11.5px;color:var(--muted);margin-top:34px;line-height:1.7}
+  .foot code{background:rgba(255,255,255,.06);padding:2px 6px;border-radius:5px;color:var(--ink)}
 
-  /* control panel */
-  .panel{position:fixed;left:30px;bottom:28px;z-index:6;width:312px;
-    background:var(--panel);border:1px solid var(--panel-brd);border-radius:16px;
-    backdrop-filter:blur(18px) saturate(1.2);-webkit-backdrop-filter:blur(18px) saturate(1.2);
-    box-shadow:0 24px 60px rgba(0,0,0,.5);padding:16px 16px 14px}
-  .panel-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
-  .live{display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:11px;
-    letter-spacing:.14em;color:var(--muted)}
-  .live .blip{width:8px;height:8px;border-radius:50%;background:#36d399;
-    box-shadow:0 0 0 0 rgba(54,211,153,.6);animation:blip 1.8s ease-out infinite}
-  @keyframes blip{0%{box-shadow:0 0 0 0 rgba(54,211,153,.55)}100%{box-shadow:0 0 0 9px rgba(54,211,153,0)}}
-
-  .total{display:flex;align-items:baseline;gap:9px;margin-bottom:14px}
-  .total #total-count{font-family:var(--mono);font-weight:600;font-size:34px;line-height:1;
-    color:#fff;font-variant-numeric:tabular-nums}
-  .total .total-lbl{font-size:12px;color:var(--muted)}
-
-  .act-row{display:grid;grid-template-columns:22px 1fr auto 26px;align-items:center;gap:10px;
-    padding:5px 0}
-  .act-row.off{opacity:.4}
-  .swatch{position:relative;width:18px;height:18px;border-radius:5px;background:var(--c);
-    cursor:pointer;box-shadow:0 0 10px -1px var(--c), inset 0 0 0 1px rgba(255,255,255,.18)}
-  .swatch input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;border:0;padding:0}
-  .act-name{font-size:13px;color:var(--ink)}
-  .act-count{font-family:var(--mono);font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
-  .eye{appearance:none;border:1px solid var(--line);background:transparent;border-radius:6px;
-    width:26px;height:22px;display:grid;place-items:center;cursor:pointer;padding:0;transition:.15s}
-  .eye .eye-dot{width:8px;height:8px;border-radius:50%;background:var(--accent);
-    box-shadow:0 0 8px var(--accent);transition:.15s}
-  .eye[aria-pressed="false"] .eye-dot{background:#444b63;box-shadow:none}
-  .eye:hover{border-color:var(--accent)}
-
-  .divider{height:1px;background:var(--line);margin:12px 0}
-
-  .ctrl{margin:9px 0}
-  .ctrl-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
-  .ctrl-top label{font-size:12px;color:var(--muted)}
-  .ctrl-top .val{font-family:var(--mono);font-size:12px;color:var(--accent)}
-  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:3px;
-    background:linear-gradient(90deg,var(--accent),#7c6bff);outline:none;cursor:pointer}
-  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;height:15px;border-radius:50%;
-    background:#fff;box-shadow:0 0 0 4px rgba(90,209,255,.25);cursor:pointer}
-  input[type=range]::-moz-range-thumb{width:15px;height:15px;border-radius:50%;background:#fff;border:0;
-    box-shadow:0 0 0 4px rgba(90,209,255,.25);cursor:pointer}
-
-  .row-btns{display:flex;gap:8px;margin-top:13px}
-  .btn{flex:1;appearance:none;border:1px solid var(--panel-brd);background:rgba(255,255,255,.04);
-    color:var(--ink);font-family:var(--sans);font-size:13px;font-weight:500;border-radius:10px;
-    padding:9px 10px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;
-    transition:.15s}
-  .btn:hover{background:rgba(255,255,255,.09);border-color:var(--accent)}
-  .btn .ico{width:12px;height:12px;display:inline-block}
-  #pause .pp-pause{display:inline-block}#pause .pp-play{display:none}
-  #pause.paused .pp-pause{display:none}#pause.paused .pp-play{display:inline-block}
-
-  .fw-row{display:grid;grid-template-columns:26px auto 1fr;align-items:center;gap:9px;margin-top:12px}
-  .fw-row.off{opacity:.5}
-  .fw-label{font-size:13px;color:var(--ink);white-space:nowrap}
-  .fw-select{justify-self:end;background:rgba(255,255,255,.05);color:var(--ink);
-    border:1px solid var(--panel-brd);border-radius:8px;padding:6px 8px;font-family:var(--sans);
-    font-size:12px;cursor:pointer;max-width:130px;-webkit-appearance:none;appearance:none}
-  .fw-select:focus{outline:none;border-color:var(--accent)}
-  .fw-select option{background:#0e1220;color:var(--ink)}
-  .hint{margin-top:11px;font-family:var(--mono);font-size:10.5px;color:var(--muted);
-    text-align:center;letter-spacing:.04em;opacity:.8}
-
-  /* scene settings (expander) */
-  .scene-expander{margin-top:13px;width:100%;appearance:none;cursor:pointer;
-    display:flex;align-items:center;gap:9px;padding:10px 12px;border-radius:11px;
-    border:1px solid var(--panel-brd);background:rgba(255,255,255,.04);color:var(--ink);
-    font-family:var(--sans);font-size:13px;font-weight:500;transition:.15s}
-  .scene-expander:hover{background:rgba(255,255,255,.09);border-color:var(--accent)}
-  .scene-expander .gear-ico{width:15px;height:15px;color:var(--accent);flex:none}
-  .scene-expander .se-label{flex:1;text-align:left}
-  .scene-expander .chev{width:13px;height:13px;color:var(--muted);transition:transform .2s}
-  .scene-expander[aria-pressed="true"]{border-color:var(--accent);background:rgba(90,209,255,.08)}
-  .scene-expander[aria-pressed="true"] .chev{transform:rotate(180deg);color:var(--accent)}
-  .scene{margin-top:12px;border-top:1px solid var(--line);padding-top:6px;
-    max-height:46vh;overflow-y:auto;overflow-x:hidden}
-  .scene::-webkit-scrollbar{width:7px}
-  .scene::-webkit-scrollbar-thumb{background:rgba(150,170,220,.22);border-radius:4px}
-  .scene[hidden]{display:none}
-  .sec-h{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;
-    color:var(--muted);margin:14px 0 6px;opacity:.8}
-  .sec-h:first-child{margin-top:6px}
-  .sc-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 0}
-  .sc-row .sc-lbl{font-size:12.5px;color:var(--ink)}
-  .sc-slider{padding:2px 0 9px}
-  .sc-slider .sc-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
-  .sc-slider .sc-lbl{font-size:12.5px;color:var(--muted)}
-  .sc-slider .sc-val{font-family:var(--mono);font-size:11.5px;color:var(--accent)}
-  .sc-seg{display:flex;gap:4px;background:rgba(255,255,255,.04);border:1px solid var(--line);
-    border-radius:9px;padding:3px}
-  .sc-seg button{flex:1;appearance:none;border:0;background:transparent;color:var(--muted);
-    font-family:var(--sans);font-size:11.5px;padding:5px 8px;border-radius:6px;cursor:pointer;transition:.13s;white-space:nowrap}
-  .sc-seg button.on{background:rgba(90,209,255,.16);color:var(--ink)}
-  .sw{appearance:none;border:0;width:38px;height:22px;border-radius:12px;background:rgba(120,135,170,.35);
-    position:relative;cursor:pointer;transition:.18s;flex:none}
-  .sw::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;
-    background:#fff;transition:.18s;box-shadow:0 1px 3px rgba(0,0,0,.4)}
-  .sw[aria-pressed="true"]{background:linear-gradient(90deg,var(--accent),#7c6bff)}
-  .sw[aria-pressed="true"]::after{left:18px}
-
-  /* live ticker (top-right) */
-  .ticker{position:fixed;top:26px;right:30px;z-index:5;width:286px;
-    display:flex;flex-direction:column;gap:7px;pointer-events:none}
-  .tk-line{display:flex;align-items:center;gap:9px;padding:8px 12px;border-radius:11px;
-    background:rgba(14,18,32,.5);border:1px solid rgba(150,170,220,.12);
-    backdrop-filter:blur(10px) saturate(1.1);-webkit-backdrop-filter:blur(10px) saturate(1.1);
-    box-shadow:0 8px 24px rgba(0,0,0,.32);
-    font-family:var(--mono);font-size:11.5px;color:var(--ink);
-    animation:tkin .5s cubic-bezier(.2,.75,.2,1) both;overflow:hidden}
-  .tk-line .tk-dot{width:8px;height:8px;border-radius:50%;flex:none;box-shadow:0 0 9px currentColor}
-  .tk-line .tk-txt{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.01em}
-  .tk-line .tk-city{color:var(--muted)}
-  @keyframes tkin{from{opacity:0;transform:translateY(-9px) scale(.985)}to{opacity:1;transform:none}}
-
-  /* loading */
-  #loading{position:fixed;inset:0;display:grid;place-items:center;z-index:20;
-    background:var(--bg);color:var(--muted);font-family:var(--mono);font-size:13px}
-  .spinner{width:30px;height:30px;border:2px solid rgba(255,255,255,.15);border-top-color:var(--accent);
-    border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 14px}
-  @keyframes spin{to{transform:rotate(360deg)}}
-  .load-err{color:#ff8a8a;text-align:center;line-height:1.6}
-
-  @media (max-width:560px){
-    .panel{left:12px;right:12px;bottom:12px;width:auto}
-    .brand{top:14px;left:16px}
-    .ticker{display:none}
+  /* ---- side-by-side view ---- */
+  body.compare .wrap{display:none}
+  .stage{display:none;flex-direction:column;height:100vh}
+  body.compare .stage{display:flex}
+  .bar{display:flex;align-items:center;gap:14px;padding:10px 16px;border-bottom:1px solid var(--line);
+    background:rgba(5,6,12,.7);backdrop-filter:blur(10px)}
+  .bar .name{font-weight:600;font-size:14px}.bar .name b{color:var(--accent)}
+  .bar .spacer{flex:1}
+  .frames{flex:1;display:grid;grid-template-columns:1fr 1fr;min-height:0}
+  .frames .col{position:relative;min-width:0;border-right:1px solid var(--line)}
+  .frames .col:last-child{border-right:0}
+  .frames .col .label{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:2;
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--accent);background:rgba(5,6,12,.6);border:1px solid var(--line);border-radius:8px;
+    padding:5px 12px;pointer-events:none}
+  .frames iframe{width:100%;height:100%;border:0;display:block;background:var(--bg)}
+  @media (max-width:760px){
+    .cards{grid-template-columns:1fr}
+    .frames{grid-template-columns:1fr;grid-template-rows:1fr 1fr}
+    .frames .col{border-right:0;border-bottom:1px solid var(--line)}
   }
 </style>
 </head>
 <body>
-  <div class="stars"></div>
-  <div class="stars stars2"></div>
-
-  <div class="stage">
-    <svg id="globe-svg" aria-label="Rotating globe of live games.directory activity">
-      <defs>
-        <radialGradient id="sphere-grad" cx="40%" cy="36%" r="75%">
-          <stop offset="0%" stop-color="#0e1d33"/>
-          <stop offset="55%" stop-color="#070f1f"/>
-          <stop offset="100%" stop-color="#02040a"/>
-        </radialGradient>
-        <radialGradient id="bottom-glow-grad" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stop-color="rgba(180,215,255,.55)"/>
-          <stop offset="40%" stop-color="rgba(120,170,255,.18)"/>
-          <stop offset="100%" stop-color="rgba(0,0,0,0)"/>
-        </radialGradient>
-        <radialGradient id="highlight-grad" cx="32%" cy="30%" r="60%">
-          <stop offset="0%" stop-color="rgba(120,180,255,.20)"/>
-          <stop offset="45%" stop-color="rgba(120,180,255,.04)"/>
-          <stop offset="100%" stop-color="rgba(0,0,0,0)"/>
-        </radialGradient>
-        <linearGradient id="atmos" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stop-color="#5ad1ff"/>
-          <stop offset="100%" stop-color="#7c6bff"/>
-        </linearGradient>
-        <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
-          <feGaussianBlur stdDeviation="8"/>
-        </filter>
-        <filter id="dot-glow" x="-20%" y="-20%" width="140%" height="140%">
-          <feGaussianBlur stdDeviation=".6"/>
-        </filter>
-        <filter id="beam-blur" x="-60%" y="-60%" width="220%" height="220%">
-          <feGaussianBlur stdDeviation="4.5"/>
-        </filter>
-        <filter id="beam-glow-f" x="-60%" y="-60%" width="220%" height="220%">
-          <feGaussianBlur stdDeviation="1.4"/>
-        </filter>
-        <clipPath id="globe-clip"><circle id="clip-circle"></circle></clipPath>
-        <filter id="night-soft" x="-20%" y="-20%" width="140%" height="140%">
-          <feGaussianBlur stdDeviation="6"/>
-        </filter>
-        <filter id="aurora-soft" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur stdDeviation="4"/>
-        </filter>
-      </defs>
-
-      <g id="shooting"></g>
-      <circle id="sphere-glow"></circle>
-      <ellipse id="bottom-glow"></ellipse>
-      <g id="orbits-back"></g>
-      <circle id="sphere"></circle>
-      <circle id="sphere-highlight"></circle>
-      <path id="spikes"></path>
-      <path id="graticule"></path>
-      <g id="land-dots">
-        <path id="land-s"></path>
-        <path id="land-m"></path>
-        <path id="land-l"></path>
-      </g>
-      <path id="night"></path>
-      <path id="night-core"></path>
-      <g id="citylights">
-        <path class="city-l" id="city-0"></path>
-        <path class="city-l" id="city-1"></path>
-        <path class="city-l" id="city-2"></path>
-      </g>
-      <g id="aurora">
-        <path class="aur aur-g" id="aur-n-g"></path>
-        <path class="aur aur-v" id="aur-n-v"></path>
-        <path class="aur aur-g" id="aur-s-g"></path>
-        <path class="aur aur-v" id="aur-s-v"></path>
-      </g>
-      <g id="nodes"></g>
-      <g id="orbits-front"></g>
-      <g id="beams"></g>
-      <g id="impacts"></g>
-      <g id="fireworks"></g>
-      <g id="hq"></g>
-    </svg>
-  </div>
-
-  <div class="brand">
-    <div class="mark">
+  <!-- chooser -->
+  <main class="wrap">
+    <div class="brand">
       <div class="glyph">g</div>
-      <div class="name"><b>games</b>.directory</div>
+      <div class="name"><b>games</b>.directory · Activity Globe</div>
     </div>
-    <div class="tag">Live activity · worldwide</div>
-  </div>
+    <h1>One globe, <span class="grad">two render engines.</span></h1>
+    <p class="lede">
+      A real-time 3D activity globe, built twice over a shared core so the two rendering
+      strategies can be compared head-to-head. Same scene, same controls, same data —
+      only the pixels are pushed differently. Each view shows a live FPS meter.
+    </p>
 
-  <aside class="ticker" id="ticker" aria-hidden="true"></aside>
-
-  <aside class="panel">
-    <div class="panel-head">
-      <span class="live"><span class="blip"></span>LIVE FEED</span>
-    </div>
-    <div class="total">
-      <span id="total-count">0</span>
-      <span class="total-lbl">activities streamed</span>
-    </div>
-
-    <div id="activity-list"></div>
-
-    <div class="divider"></div>
-
-    <div class="ctrl">
-      <div class="ctrl-top"><label for="rate">Activity rate</label><span class="val" id="rate-val">3.0/s</span></div>
-      <input type="range" id="rate" min="0.2" max="14" step="0.1">
-    </div>
-    <div class="ctrl">
-      <div class="ctrl-top"><label for="rot">Rotation speed</label><span class="val" id="rot-val">6°/s</span></div>
-      <input type="range" id="rot" min="0" max="30" step="1">
+    <div class="cards">
+      <a class="card recommend" href="canvas/index.html">
+        <div class="tag">Renderer A</div>
+        <h2>Canvas 2D</h2>
+        <p>Immediate-mode drawing to a single canvas. The whole frame is cleared and
+           redrawn each tick — no persistent nodes, no per-frame DOM work. Built for FPS.</p>
+        <div class="meta"><span>high fps</span><span>additive glows</span><span>DPR-aware</span></div>
+      </a>
+      <a class="card" href="svg/index.html">
+        <div class="tag">Renderer B</div>
+        <h2>SVG</h2>
+        <p>Retained-mode: persistent SVG nodes whose attributes are updated each frame.
+           The original approach — crisp, resolution-independent, identical look.</p>
+        <div class="meta"><span>vector-crisp</span><span>blend-mode glows</span><span>retained DOM</span></div>
+      </a>
     </div>
 
-    <div class="row-btns">
-      <button class="btn" id="pause">
-        <svg class="ico pp-pause" viewBox="0 0 12 12"><rect x="1.5" y="1" width="3" height="10" rx="1" fill="currentColor"/><rect x="7.5" y="1" width="3" height="10" rx="1" fill="currentColor"/></svg>
-        <svg class="ico pp-play" viewBox="0 0 12 12"><path d="M2 1l9 5-9 5z" fill="currentColor"/></svg>
-        <span class="pp-label">Pause</span>
-      </button>
+    <div class="actions">
+      <button class="btn primary" id="compare">◧ Compare side-by-side</button>
+      <a class="btn" href="COMPARISON.md">Read the write-up</a>
     </div>
-    <div class="fw-row">
-      <button class="eye" id="fw-toggle" aria-pressed="true" title="Toggle fireworks"><span class="eye-dot"></span></button>
-      <span class="fw-label">Fireworks on</span>
-      <select id="fw-trigger" class="fw-select" title="Activity that sets off fireworks"></select>
+
+    <p class="foot">
+      Needs a static server (the world map is fetched at runtime):
+      <code>python3 -m http.server 8000</code> → <code>http://localhost:8000</code><br>
+      Customise HQ, cities and activity types in <code>shared/data.js</code>; tune visuals live via the in-app <b>Scene &amp; effects</b> panel.
+    </p>
+  </main>
+
+  <!-- side-by-side -->
+  <section class="stage">
+    <div class="bar">
+      <span class="name"><b>games</b>.directory · side-by-side</span>
+      <span class="spacer"></span>
+      <a class="btn" href="index.html">← Back to chooser</a>
     </div>
-    <div class="hint">drag the globe to spin · tap a swatch to recolour</div>
+    <div class="frames">
+      <div class="col"><span class="label">Canvas 2D</span><iframe id="f-canvas" title="Canvas renderer"></iframe></div>
+      <div class="col"><span class="label">SVG</span><iframe id="f-svg" title="SVG renderer"></iframe></div>
+    </div>
+  </section>
 
-    <button class="scene-expander" id="scene-toggle" aria-pressed="false" aria-controls="scene">
-      <svg class="gear-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-      <span class="se-label">Scene &amp; effects</span>
-      <svg class="chev" viewBox="0 0 12 12"><path d="M2 4l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    </button>
-    <div class="scene" id="scene" hidden></div>
-  </aside>
-
-  <div id="loading"><div><div class="spinner"></div>loading world map…</div></div>
-
-  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js"></script>
-  <script src="data.js"></script>
-  <script src="globe.js"></script>
+  <script>
+    // Lazily load the iframes only when compare mode is entered (keeps the
+    // chooser cheap and avoids two globes fetching the map up front).
+    const enter = () => {
+      document.body.classList.add("compare");
+      document.getElementById("f-canvas").src = "canvas/index.html";
+      document.getElementById("f-svg").src = "svg/index.html";
+      location.hash = "compare";
+    };
+    document.getElementById("compare").addEventListener("click", enter);
+    if (location.hash === "#compare") enter();
+  </script>
 </body>
 </html>
