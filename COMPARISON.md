@@ -83,10 +83,31 @@ Where you feel it:
 SVG isn't *slow* in absolute terms — at the default rate on a desktop it holds up
 fine — it just has a lower ceiling and degrades sooner under load.
 
+### Canvas isn't automatically faster — it's only as good as the draw code
+
+Canvas wins **only if you avoid its expensive operations**. A naive port can easily
+end up *slower* than SVG. The two traps that bit the first cut of this build, and how
+it now avoids them:
+
+- **`ctx.shadowBlur` per point.** Every shadowed fill forces a separate offscreen
+  Gaussian-blur pass — brutal when used per star-node / beam-head / meteor / HQ dot,
+  every frame. **Fix:** bake one soft white glow into an offscreen sprite once and
+  `drawImage` it (additively). A blit is a fraction of the cost of a blur.
+- **Re-creating + re-filling large gradients every frame.** The sphere disc, its
+  highlight, and the atmosphere rim/bottom glow don't change shape as the globe
+  spins, yet were being `createRadialGradient`'d and filled across the whole disc
+  each frame — at the device pixel ratio that's a lot of fill-rate. **Fix:** render
+  them to offscreen sprites once on resize and blit them each frame; the live
+  `atmos`/pulse values just modulate `globalAlpha`.
+
+Lesson: the architecture (immediate-mode, one cleared canvas) is what gives the
+headroom — but you have to keep per-frame work to cheap fills, strokes and blits, and
+push everything static or blurred into a cached sprite.
+
 > ⚠️ **Don't trust headless numbers.** FPS captured in headless Chrome (and the
 > screenshots in review) is throttled by virtual-time and a software compositor and
 > is **not** representative. Compare the live meters in a real browser, ideally with
-> *Activity rate* high and a retina display.
+> *Activity rate* high and a retina display — and on the actual target hardware.
 
 ---
 

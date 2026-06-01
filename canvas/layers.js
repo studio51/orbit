@@ -17,40 +17,89 @@ import { DENSITY_STEP, AURORA_SCHEMES } from "../shared/config.js";
 const ADD = (ctx) => (ctx.globalCompositeOperation = "lighter");
 const NORMAL = (ctx) => (ctx.globalCompositeOperation = "source-over");
 
+// A cached soft white glow sprite, blitted with drawImage instead of the very
+// expensive per-point ctx.shadowBlur (which forces an offscreen blur per draw).
+let _glow = null;
+function glowSprite() {
+  if (_glow) return _glow;
+  const S = 128, c = document.createElement("canvas");
+  c.width = c.height = S;
+  const g = c.getContext("2d");
+  const grad = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
+  grad.addColorStop(0, "rgba(255,255,255,1)");
+  grad.addColorStop(0.25, "rgba(255,255,255,0.55)");
+  grad.addColorStop(1, "rgba(255,255,255,0)");
+  g.fillStyle = grad; g.fillRect(0, 0, S, S);
+  _glow = c; return _glow;
+}
+// Draw a soft glow of radius r at (x,y). Caller sets the composite mode; this
+// touches globalAlpha and resets it to 1.
+function drawGlow(ctx, x, y, r, alpha) {
+  ctx.globalAlpha = alpha;
+  ctx.drawImage(glowSprite(), x - r, y - r, r * 2, r * 2);
+  ctx.globalAlpha = 1;
+}
+
+// Render a layer's static art into an offscreen canvas once (sized to the
+// device-pixel backing store), so the per-frame cost is a single drawImage.
+function makeSprite(e, paint) {
+  const c = document.createElement("canvas");
+  c.width = Math.round(e.W * e.dpr); c.height = Math.round(e.H * e.dpr);
+  const g = c.getContext("2d");
+  g.setTransform(e.dpr, 0, 0, e.dpr, 0, 0);
+  paint(g);
+  return c;
+}
+// Blit a full-screen sprite 1:1 over the backing store (transform-independent).
+function blit(ctx, sprite, alpha, additive) {
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  if (additive) ctx.globalCompositeOperation = "lighter";
+  ctx.globalAlpha = alpha;
+  ctx.drawImage(sprite, 0, 0);
+  ctx.restore();
+}
+
 // ======================================================================
 // Atmosphere — breathing rim glow + bottom bloom
 // ======================================================================
 export function atmosphereLayer() {
+  // Sprites are baked at a reference strength (atmos≈1); the live atmos value
+  // and breathing pulse modulate them via globalAlpha at blit time — so tuning
+  // the glow or toggling the pulse never rebuilds anything.
+  let rim = null, bottom = null;
+  function build(e) {
+    const { CX, CY, R } = e;
+    rim = makeSprite(e, (g) => {
+      const grad = g.createRadialGradient(CX, CY, R * 0.82, CX, CY, R * 1.16);
+      grad.addColorStop(0, "rgba(90,209,255,0)");
+      grad.addColorStop(0.80, "rgba(90,209,255,0)");
+      grad.addColorStop(0.92, "rgba(110,200,255,0.55)");
+      grad.addColorStop(0.97, "rgba(124,107,255,0.38)");
+      grad.addColorStop(1, "rgba(124,107,255,0)");
+      g.fillStyle = grad; g.beginPath(); g.arc(CX, CY, R * 1.16, 0, TAU); g.fill();
+    });
+    bottom = makeSprite(e, (g) => {
+      g.translate(CX, CY + R * 0.86); g.scale(R * 0.62, R * 0.26);
+      const grad = g.createRadialGradient(0, 0, 0, 0, 0, 1);
+      grad.addColorStop(0, "rgba(180,215,255,0.55)");
+      grad.addColorStop(0.4, "rgba(120,170,255,0.18)");
+      grad.addColorStop(1, "rgba(0,0,0,0)");
+      g.fillStyle = grad; g.beginPath(); g.arc(0, 0, 1, 0, TAU); g.fill();
+    });
+  }
   return {
     name: "atmosphere", z: 10,
+    resize(e) { build(e); },
     visible: (e) => e.scene.atmos > 0,
     draw(e) {
-      const { ctx, CX, CY, R, scene, now } = e;
+      const { ctx, scene, now } = e;
+      if (!rim) build(e);
       const pulse = scene.atmosPulse ? 0.82 + 0.18 * Math.sin(now * 0.0011) : 1;
-      const a = 0.55 * scene.atmos * pulse;
-      ADD(ctx);
-      // rim
-      const rim = ctx.createRadialGradient(CX, CY, R * 0.82, CX, CY, R * 1.16);
-      rim.addColorStop(0, "rgba(90,209,255,0)");
-      rim.addColorStop(0.80, "rgba(90,209,255,0)");
-      rim.addColorStop(0.92, `rgba(110,200,255,${a})`);
-      rim.addColorStop(0.97, `rgba(124,107,255,${a * 0.7})`);
-      rim.addColorStop(1, "rgba(124,107,255,0)");
-      ctx.fillStyle = rim;
-      ctx.beginPath(); ctx.arc(CX, CY, R * 1.16, 0, TAU); ctx.fill();
-      // bottom bloom (squashed)
       const bpulse = scene.atmosPulse ? 0.88 + 0.12 * Math.sin(now * 0.0011 + 1.2) : 1;
-      ctx.save();
-      ctx.translate(CX, CY + R * 0.86);
-      ctx.scale(R * 0.62, R * 0.26);
-      const bg = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
-      bg.addColorStop(0, `rgba(180,215,255,${0.55 * scene.atmos * bpulse})`);
-      bg.addColorStop(0.4, `rgba(120,170,255,${0.18 * scene.atmos * bpulse})`);
-      bg.addColorStop(1, "rgba(0,0,0,0)");
-      ctx.fillStyle = bg;
-      ctx.beginPath(); ctx.arc(0, 0, 1, 0, TAU); ctx.fill();
-      ctx.restore();
-      NORMAL(ctx);
+      blit(ctx, rim, Math.min(1, scene.atmos * pulse), true);
+      blit(ctx, bottom, Math.min(1, scene.atmos * bpulse), true);
+      ctx.globalAlpha = 1; NORMAL(ctx);
     },
   };
 }
@@ -59,25 +108,31 @@ export function atmosphereLayer() {
 // Sphere — dark globe disc + soft top-left highlight
 // ======================================================================
 export function sphereLayer() {
-  return {
-    name: "sphere", z: 30,
-    draw(e) {
-      const { ctx, CX, CY, R } = e;
-      const g = ctx.createRadialGradient(CX - R * 0.2, CY - R * 0.28, R * 0.1, CX, CY, R);
-      g.addColorStop(0, "#0e1d33");
-      g.addColorStop(0.55, "#070f1f");
-      g.addColorStop(1, "#02040a");
-      ctx.fillStyle = g;
-      ctx.beginPath(); ctx.arc(CX, CY, R, 0, TAU); ctx.fill();
-      // highlight
-      ADD(ctx);
-      const h = ctx.createRadialGradient(CX - R * 0.32, CY - R * 0.34, R * 0.05, CX - R * 0.32, CY - R * 0.34, R);
+  // The disc + highlight don't change with rotation — bake once, blit per frame.
+  let sprite = null;
+  function build(e) {
+    const { CX, CY, R } = e;
+    sprite = makeSprite(e, (g) => {
+      const grad = g.createRadialGradient(CX - R * 0.2, CY - R * 0.28, R * 0.1, CX, CY, R);
+      grad.addColorStop(0, "#0e1d33");
+      grad.addColorStop(0.55, "#070f1f");
+      grad.addColorStop(1, "#02040a");
+      g.fillStyle = grad; g.beginPath(); g.arc(CX, CY, R, 0, TAU); g.fill();
+      g.globalCompositeOperation = "lighter";
+      const h = g.createRadialGradient(CX - R * 0.32, CY - R * 0.34, R * 0.05, CX - R * 0.32, CY - R * 0.34, R);
       h.addColorStop(0, "rgba(120,180,255,0.20)");
       h.addColorStop(0.45, "rgba(120,180,255,0.04)");
       h.addColorStop(1, "rgba(0,0,0,0)");
-      ctx.fillStyle = h;
-      ctx.beginPath(); ctx.arc(CX, CY, R, 0, TAU); ctx.fill();
-      NORMAL(ctx);
+      g.fillStyle = h; g.beginPath(); g.arc(CX, CY, R, 0, TAU); g.fill();
+    });
+  }
+  return {
+    name: "sphere", z: 30,
+    resize(e) { build(e); },
+    draw(e) {
+      if (!sprite) build(e);
+      blit(e.ctx, sprite, 1, false);
+      e.ctx.globalAlpha = 1;
     },
   };
 }
@@ -143,11 +198,11 @@ export function orbitsFrontLayer() {
       for (const ob of orbits) ctx.stroke(ob.front);
       for (const ob of orbits) {
         if (!ob.sat) continue;
-        ctx.globalAlpha = ob.sat.front ? 1 : 0.15;
-        ctx.fillStyle = "#cce6ff";
-        ctx.shadowColor = "#bcd9ff"; ctx.shadowBlur = 5;
+        const sa = ob.sat.front ? 1 : 0.15;
+        drawGlow(ctx, ob.sat.x, ob.sat.y, 6, sa);
+        ctx.globalAlpha = sa; ctx.fillStyle = "#cce6ff";
         ctx.beginPath(); ctx.arc(ob.sat.x, ob.sat.y, 2, 0, TAU); ctx.fill();
-        ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+        ctx.globalAlpha = 1;
       }
       NORMAL(ctx);
     },
@@ -411,15 +466,16 @@ export function nodesLayer() {
       const { ctx, proj, now } = e;
       const tt = now * 0.001;
       ADD(ctx);
-      ctx.fillStyle = "#eaf4ff"; ctx.shadowColor = "#cfe6ff"; ctx.shadowBlur = 4;
       for (const node of nodes) {
         const p = proj.forward(node.ll);
         if (!p || !proj.visible(node.ll)) continue;
         const tw = 0.35 + 0.65 * Math.abs(Math.sin(tt * node.sp + node.phase));
-        ctx.globalAlpha = tw;
-        ctx.beginPath(); ctx.arc(p[0], p[1], node.size * (0.7 + 0.3 * tw), 0, TAU); ctx.fill();
+        const r = node.size * (0.7 + 0.3 * tw);
+        drawGlow(ctx, p[0], p[1], r * 3, tw * 0.55);
+        ctx.globalAlpha = tw; ctx.fillStyle = "#eaf4ff";
+        ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, TAU); ctx.fill();
       }
-      ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+      ctx.globalAlpha = 1;
       NORMAL(ctx);
     },
   };
@@ -514,9 +570,10 @@ export function beamsLayer() {
 
         // head dot rides the leading edge
         if (t < 1) {
-          ctx.fillStyle = "#fff"; ctx.shadowColor = b.color; ctx.shadowBlur = 7;
-          ctx.beginPath(); ctx.arc(hx, hy, 4.2 + Math.sin(age / 90) * 0.7, 0, TAU); ctx.fill();
-          ctx.shadowBlur = 0;
+          const hr = 4.2 + Math.sin(age / 90) * 0.7;
+          drawGlow(ctx, hx, hy, hr * 2.6, op);
+          ctx.globalAlpha = op; ctx.fillStyle = "#fff";
+          ctx.beginPath(); ctx.arc(hx, hy, hr, 0, TAU); ctx.fill();
         } else if (!b.impacted) {
           b.impacted = true;
           e.emit("impact", { p: hqp.slice(), color: b.color });
@@ -670,9 +727,9 @@ export function meteorsLayer() {
         grad.addColorStop(1, "rgba(255,255,255,1)");
         ctx.strokeStyle = grad; ctx.lineWidth = m.w;
         ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(m.x, m.y); ctx.stroke();
-        ctx.fillStyle = "#fff"; ctx.shadowColor = "#9fc6ff"; ctx.shadowBlur = 10;
+        drawGlow(ctx, m.x, m.y, m.hr * 3, op);
+        ctx.globalAlpha = op; ctx.fillStyle = "#fff";
         ctx.beginPath(); ctx.arc(m.x, m.y, m.hr, 0, TAU); ctx.fill();
-        ctx.shadowBlur = 0;
       }
       ctx.globalAlpha = 1;
       NORMAL(ctx);
@@ -698,10 +755,10 @@ export function hqLayer() {
         ctx.beginPath(); ctx.arc(x, y, 5 + p * 29, 0, TAU); ctx.stroke();
       }
       ctx.globalAlpha = 1;
-      // dot
-      ctx.fillStyle = "#fff"; ctx.shadowColor = "#fff"; ctx.shadowBlur = 7;
+      // dot (additive glow sprite + crisp core)
+      ADD(ctx); drawGlow(ctx, x, y, 11, 0.9); NORMAL(ctx);
+      ctx.fillStyle = "#fff";
       ctx.beginPath(); ctx.arc(x, y, 4.5, 0, TAU); ctx.fill();
-      ctx.shadowBlur = 0;
       // label
       ctx.textBaseline = "alphabetic";
       ctx.lineJoin = "round"; ctx.strokeStyle = "rgba(5,6,12,0.8)";
