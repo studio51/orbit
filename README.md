@@ -49,25 +49,34 @@ open/closed preference persist across reloads (via `localStorage`).
 
 ## Architecture
 
-ES modules, no build step. A small **layer-registry engine** owns the viewport,
-clock, rotation, drag, sun and an event bus; every visual element is a
-self-contained **layer** (`{ name, z, build, resize, simulate, draw }`) drawn in
-z-order. Adding an effect = write a factory in `layers.js` and register it.
+ES modules, no build step. A `BaseEngine` owns the viewport, clock, rotation,
+drag, sun and an event bus; each renderer is a thin subclass that fills in a few
+backend hooks. Every visual element is a self-contained **layer**
+(`{ name, z, build, resize, simulate, draw }`) drawn in z-order. The two renderers
+share *everything* except the actual painting: geometry, simulation, the engine,
+data, config and UI all live in `shared/`, so there's no duplicated logic.
 
 ```
 index.html        chooser + side-by-side compare
 shared/           used by BOTH renderers
   data.js         HQ, activity types, cities — the file you edit to customise
   config.js       scene defaults, panel spec, persistence
+  engine.js       BaseEngine: loop, layer registry, rotation, drag, spawn cadence
   geo.js          Projection (d3.geoOrthographic) + fast projection + sun
+  geometry.js     pure geometry: orbit/aurora bands, land/spike/node builds, arc math
+  sim.js          simulation: beam pick, particle physics, firework/meteor specs
   util.js         easing / colour / weighted pick
   ui.js           scene panel, activity list, controls, ticker (pure DOM)
   fps.js          live FPS meter
   ui.css          shared chrome styling
-canvas/           Canvas2D engine + layers + entry   ← recommended
-svg/              SVG engine + layers + entry         (modularised original)
+canvas/           engine subclass + rendering-only layers + entry   ← recommended
+svg/              engine subclass + rendering-only layers + entry    (the original look)
 legacy/           the original single-file version, kept for reference
 ```
+
+Each renderer's `engine.js` (~30–80 lines) and `layers.js` are **rendering only** —
+all behaviour comes from `shared/`. Adding an effect = write a layer factory in
+`layers.js` (using the shared geometry/sim helpers) and register it.
 
 D3 v7 and `topojson-client` load from a CDN; world landmass topology
 (`world-atlas`) is fetched at runtime with fallback CDNs.

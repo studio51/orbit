@@ -22,11 +22,18 @@ variable is how pixels reach the screen.
 | ------ | -------------- |
 | `data.js` | HQ, activity types, cities, ticker verbs, map URLs — **the file you edit to customise** |
 | `config.js` | Scene defaults, the panel spec, persistence |
+| `engine.js` | `BaseEngine` — the loop, layer registry, rotation, drag, spawn cadence, sun, event bus |
 | `geo.js` | `Projection` — wraps `d3.geoOrthographic`, adds the fast forward-projection + sun/terminator |
+| `geometry.js` | pure geometry — orbit rings, aurora bands, land/spike/node builds, beam-arc math |
+| `sim.js` | simulation — beam pick, particle physics, firework/meteor specs, beam timings |
 | `util.js` | easing, colour, weighted pick |
 | `ui.js` | scene panel, activity list, base controls, ticker (pure DOM, backend-agnostic) |
 | `fps.js` | the smoothed FPS meter |
 | `ui.css` | all the chrome (panel, brand, ticker, loading) |
+
+Each renderer is then just an `Engine` subclass (~30–80 lines of backend hooks) plus
+a **rendering-only** `layers.js`. No geometry or simulation logic is duplicated
+between the two builds.
 
 ## Same architecture, two backends
 

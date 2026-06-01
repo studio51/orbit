@@ -12,9 +12,27 @@
  *
  * Depends on the global `d3` (graticule/terminator geo-path strings).
  */
-import { DEG, TAU, lerp, easeInOutCubic, tint, weightedPick } from "../shared/util.js";
+import { easeInOutCubic, tint } from "../shared/util.js";
 import { DENSITY_STEP } from "../shared/config.js";
+import {
+  ORBIT_DEFS, computeOrbit, arcControl, quadSplit, quadPoint,
+  buildLandDots, buildSpikes, pickNodes, auroraSpecs, auroraSegments,
+} from "../shared/geometry.js";
+import {
+  BEAM, pickBeam, beamEnvelope, spawnMeteorParams, stepMeteor, meteorOpacity,
+  fireworkBurst, fireworkBarrage, stepFirework, fireworkAlpha,
+} from "../shared/sim.js";
 import { el } from "./engine.js";
+
+// Build an SVG path string from a list of flat [x,y,x,y,…] segments.
+function pathFromSegments(segments) {
+  let d = "";
+  for (const s of segments) {
+    d += "M" + s[0].toFixed(1) + " " + s[1].toFixed(1);
+    for (let i = 2; i < s.length; i += 2) d += "L" + s[i].toFixed(1) + " " + s[i + 1].toFixed(1);
+  }
+  return d;
+}
 
 const $ = (id) => document.getElementById(id);
 
@@ -37,11 +55,10 @@ export function meteorsLayer() {
         while (acc >= 1 && guard < 3) { spawn(e); acc -= 1; guard++; }
       } else { acc = 0; }
       for (let i = meteors.length - 1; i >= 0; i--) {
-        const m = meteors[i]; m.t += dt;
-        if (m.t >= m.ttl || m.x < -120 || m.y > e.H + 120) {
+        const m = meteors[i];
+        if (!stepMeteor(m, dt, e.H)) {
           m.g.remove(); if (m.grad.parentNode) m.grad.remove(); meteors.splice(i, 1); continue;
         }
-        m.x += m.vx * dt; m.y += m.vy * dt;
       }
     },
     draw(e) {
@@ -53,22 +70,12 @@ export function meteorsLayer() {
         m.grad.setAttribute("x1", tx.toFixed(1)); m.grad.setAttribute("y1", ty.toFixed(1));
         m.grad.setAttribute("x2", m.x.toFixed(1)); m.grad.setAttribute("y2", m.y.toFixed(1));
         m.head.setAttribute("cx", m.x.toFixed(1)); m.head.setAttribute("cy", m.y.toFixed(1));
-        const a = m.t / m.ttl; let op = 1;
-        if (a < 0.12) op = a / 0.12; else if (a > 0.72) op = Math.max(0, 1 - (a - 0.72) / 0.28);
-        m.g.style.opacity = op.toFixed(2);
+        m.g.style.opacity = meteorOpacity(m).toFixed(2);
       }
     },
   };
 
   function spawn(e) {
-    const fromRight = Math.random() < 0.45;
-    let x, y;
-    if (fromRight) { x = e.W + 40; y = Math.random() * e.H * 0.6; }
-    else { x = Math.random() * e.W * 0.9; y = -40; }
-    const ang = (Math.random() * 0.5 + 0.62) * Math.PI; // ~112°–203°: down & left
-    const speed = (e.W + e.H) * (0.34 + Math.random() * 0.30); // px/sec
-    const vx = Math.cos(ang) * speed, vy = Math.abs(Math.sin(ang)) * speed;
-    const len = 90 + Math.random() * 170;
     const id = "met-g-" + (seq++);
     const grad = el("linearGradient", { id: id, gradientUnits: "userSpaceOnUse" });
     grad.appendChild(el("stop", { offset: "0%", "stop-color": "#fff", "stop-opacity": "0" }));
@@ -81,7 +88,7 @@ export function meteorsLayer() {
     head.style.filter = "drop-shadow(0 0 6px #fff) drop-shadow(0 0 12px #9fc6ff)";
     g.appendChild(trail); g.appendChild(head);
     layerEl.appendChild(g);
-    meteors.push({ g, trail, head, grad, x, y, vx, vy, len, t: 0, ttl: 0.9 + Math.random() * 0.7 });
+    meteors.push(Object.assign(spawnMeteorParams(e.W, e.H), { g, trail, head, grad }));
   }
 }
 
@@ -134,13 +141,6 @@ export function sphereLayer() {
 // ======================================================================
 // Orbital rings — tilted/spun rings split front/back around the globe
 // ======================================================================
-const ORBIT_DEFS = [
-  { rf: 1.16, incl: 1.15, yaw0: 0.4, spin: 0.05, sat: true },
-  { rf: 1.24, incl: 0.6,  yaw0: 2.1, spin: -0.035, sat: false },
-  { rf: 1.10, incl: 1.45, yaw0: 1.2, spin: 0.06, sat: true },
-  { rf: 1.32, incl: 0.95, yaw0: 3.0, spin: -0.025, sat: false },
-  { rf: 1.19, incl: 0.3,  yaw0: 0.8, spin: 0.04, sat: false },
-];
 // Shared orbit geometry — both front and back layers consume the same nodes,
 // which are built once and rendered once per frame (back layer renders).
 function makeOrbitState() {
@@ -163,30 +163,15 @@ function makeOrbitState() {
   }
   function render(e) {
     const { CX, CY, R, now } = e;
-    const N = 84;
     for (let o = 0; o < orbits.length; o++) {
-      const ob = orbits[o], cfg = ob.cfg;
-      const Rr = R * cfg.rf;
-      const ci = Math.cos(cfg.incl), si = Math.sin(cfg.incl);
-      const yaw = cfg.yaw0 + now * 0.001 * cfg.spin * 6;
-      const cy_ = Math.cos(yaw), sy = Math.sin(yaw);
-      let fd = "", bd = "", fStart = true, bStart = true;
-      const satIdx = ((now * 0.0004 * (o + 1)) % 1) * N | 0;
-      for (let k = 0; k <= N; k++) {
-        const a = (k / N) * Math.PI * 2;
-        const x0 = Math.cos(a), y0 = Math.sin(a), z0 = 0;
-        const y1 = y0 * ci - z0 * si, z1 = y0 * si + z0 * ci, x1 = x0;
-        const x2 = x1 * cy_ + z1 * sy, z2 = -x1 * sy + z1 * cy_, y2 = y1;
-        const sx = CX + x2 * Rr, sySc = CY - y2 * Rr;
-        if (z2 >= 0) { fd += (fStart ? "M" : "L") + sx.toFixed(1) + " " + sySc.toFixed(1); fStart = false; bStart = true; }
-        else { bd += (bStart ? "M" : "L") + sx.toFixed(1) + " " + sySc.toFixed(1); bStart = false; fStart = true; }
-        if (ob.sat && k === satIdx) {
-          if (z2 >= 0) { ob.sat.setAttribute("cx", sx.toFixed(1)); ob.sat.setAttribute("cy", sySc.toFixed(1)); ob.sat.style.opacity = 1; }
-          else ob.sat.style.opacity = 0.15;
-        }
+      const ob = orbits[o];
+      const g = computeOrbit(ob.cfg, o, R, CX, CY, now);
+      ob.front.setAttribute("d", pathFromSegments(g.front));
+      ob.back.setAttribute("d", pathFromSegments(g.back));
+      if (ob.sat && g.sat) {
+        if (g.sat.front) { ob.sat.setAttribute("cx", g.sat.x.toFixed(1)); ob.sat.setAttribute("cy", g.sat.y.toFixed(1)); ob.sat.style.opacity = 1; }
+        else ob.sat.style.opacity = 0.15;
       }
-      ob.front.setAttribute("d", fd);
-      ob.back.setAttribute("d", bd);
     }
   }
   return { build, render };
@@ -215,18 +200,8 @@ export function spikesLayer() {
     name: "spikes", z: 35,
     build(e) {
       spikesEl = $("spikes");
-      const step = 7; // sparse — the corona is a faint shimmer, not detail
-      const sinA = [], cosA = [], lngA = [], lenA = [], phA = [];
-      for (let lat = -86; lat <= 86; lat += step) {
-        const ringStep = step / Math.max(0.16, Math.cos(lat * DEG));
-        for (let l = -180; l < 180; l += ringStep) {
-          const latR = lat * DEG;
-          sinA.push(Math.sin(latR)); cosA.push(Math.cos(latR)); lngA.push(l * DEG);
-          lenA.push(0.25 + Math.random() * 0.95); phA.push(Math.random() * Math.PI * 2);
-        }
-      }
-      sin = Float64Array.from(sinA); cos = Float64Array.from(cosA); lng = Float64Array.from(lngA);
-      lenF = Float64Array.from(lenA); phase = Float64Array.from(phA); n = sinA.length;
+      const s = buildSpikes();
+      sin = s.sin; cos = s.cos; lng = s.lng; lenF = s.lenF; phase = s.phase; n = s.n;
     },
     draw(e) {
       if (e.frameCount % 2 !== 0) return; // faint corona — half-rate is invisible
@@ -279,26 +254,10 @@ export function landLayer() {
       city0 = $("city-0"); city1 = $("city-1"); city2 = $("city-2");
       const feature = e.data.landFeature;
       if (!feature) return;
-      const step = DENSITY_STEP[e.scene.density] || 3.0;
-      const sinA = [], cosA = [], lngA = [], cityA = [], grpA = [], tierA = [], pts = [];
-      for (let lat = -84; lat <= 84; lat += step) {
-        const ringStep = step / Math.max(0.18, Math.cos(lat * DEG));
-        for (let l = -180; l < 180; l += ringStep) {
-          if (!d3.geoContains(feature, [l, lat])) continue;
-          const latR = lat * DEG;
-          sinA.push(Math.sin(latR)); cosA.push(Math.cos(latR)); lngA.push(l * DEG);
-          pts.push([l, lat]);
-          cityA.push(Math.random() < 0.45 ? 1 : 0);
-          grpA.push((Math.random() * 3) | 0);
-          // size tier for relief texture: ~46% small, ~37% medium, ~17% large
-          const r = Math.random();
-          tierA.push(r < 0.46 ? 0 : (r < 0.83 ? 1 : 2));
-        }
-      }
-      sin = Float64Array.from(sinA); cos = Float64Array.from(cosA); lng = Float64Array.from(lngA);
-      isCity = Uint8Array.from(cityA); grp = Uint8Array.from(grpA); tier = Uint8Array.from(tierA);
-      n = sinA.length;
-      e.landDots = pts; // real [lng,lat] pairs, used to seed star nodes
+      const d = buildLandDots(feature, DENSITY_STEP[e.scene.density] || 3.0);
+      sin = d.sin; cos = d.cos; lng = d.lng;
+      isCity = d.isCity; grp = d.grp; tier = d.tier; n = d.n;
+      e.landDots = d.pts; // real [lng,lat] pairs, used to seed star nodes
     },
     draw(e) {
       const { CX, CY, R, scene, proj, now } = e;
@@ -367,44 +326,23 @@ export function cityLightsLayer() {
 // ======================================================================
 export function auroraLayer() {
   let aurNG, aurNV, aurSG, aurSV;
-  function band(e, baseLat, amp, phase) {
-    const { CX, CY, R, now, scene, proj } = e;
-    const { lon0, sinLat0, cosLat0 } = proj;
-    let d = "", start = true;
-    const t = now * 0.0006 * scene.auroraSpeed;
-    for (let lng = -180; lng <= 180; lng += 4) {
-      const lngR = lng * DEG;
-      const lat = baseLat
-        + amp * Math.sin(lngR * 3 + t * 6 + phase)
-        + amp * 0.5 * Math.sin(lngR * 7 - t * 4 + phase);
-      const latR = lat * DEG;
-      const sinL = Math.sin(latR), cosL = Math.cos(latR);
-      const dlon = lngR - lon0, cd = Math.cos(dlon);
-      const cosc = sinLat0 * sinL + cosLat0 * cosL * cd;
-      if (cosc <= 0.02) { start = true; continue; } // back / limb -> break
-      const sd = Math.sin(dlon);
-      const sx = CX + R * (cosL * sd);
-      const sy = CY - R * (cosLat0 * sinL - sinLat0 * cosL * cd);
-      d += (start ? "M" : "L") + sx.toFixed(1) + " " + sy.toFixed(1);
-      start = false;
-    }
-    return d;
-  }
   return {
     name: "aurora", z: 60,
     build(e) { aurNG = $("aur-n-g"); aurNV = $("aur-n-v"); aurSG = $("aur-s-g"); aurSV = $("aur-s-v"); },
     draw(e) {
-      const { now, scene } = e;
+      const { CX, CY, R, now, scene, proj } = e;
       if (!scene.aurora) {
         aurNG.setAttribute("d", ""); aurNV.setAttribute("d", "");
         aurSG.setAttribute("d", ""); aurSV.setAttribute("d", "");
         return;
       }
-      const bl = scene.auroraLat;
-      aurNG.setAttribute("d", band(e, bl, 4.5, 0));
-      aurNV.setAttribute("d", band(e, bl + 2.5, 5.5, 1.6));
-      aurSG.setAttribute("d", band(e, -bl, 4.5, 2.4));
-      aurSV.setAttribute("d", band(e, -bl - 2.5, 5.5, 3.9));
+      const nodes = [aurNG, aurNV, aurSG, aurSV];
+      const specs = auroraSpecs(scene);
+      for (let i = 0; i < nodes.length; i++) {
+        const s = specs[i];
+        nodes[i].setAttribute("d", pathFromSegments(
+          auroraSegments(proj, CX, CY, R, s.lat, s.amp, s.phase, now, scene.auroraSpeed)));
+      }
       const t = now * 0.0011, k = scene.auroraIntensity;
       aurNG.style.opacity = Math.min(1, (0.34 + 0.22 * Math.sin(t)) * k).toFixed(2);
       aurNV.style.opacity = Math.min(1, (0.30 + 0.22 * Math.sin(t + 1.7)) * k).toFixed(2);
@@ -425,14 +363,11 @@ export function nodesLayer() {
       layerEl = $("nodes");
       while (layerEl.firstChild) layerEl.removeChild(layerEl.firstChild);
       nodes = [];
-      const dots = e.landDots;
-      if (!dots || !dots.length) return;
-      for (let i = 0; i < 18; i++) {
-        const ll = dots[(Math.random() * dots.length) | 0];
+      for (const desc of pickNodes(e.landDots)) {
         const el2 = el("circle", { "class": "node", r: 1 });
         el2.style.filter = "drop-shadow(0 0 4px #cfe6ff)";
         layerEl.appendChild(el2);
-        nodes.push({ ll, el: el2, phase: Math.random() * Math.PI * 2, sp: 1.5 + Math.random() * 2.5, size: 1.3 + Math.random() * 1.6 });
+        nodes.push(Object.assign({ el: el2 }, desc));
       }
     },
     draw(e) {
@@ -455,31 +390,15 @@ export function nodesLayer() {
 // ======================================================================
 // Beams — great-arc activity beams converging on HQ (the core feature)
 // ======================================================================
-const DRAW_MS = 1500, HOLD_MS = 700, FADE_MS = 950, LIFE_MS = DRAW_MS + HOLD_MS + FADE_MS;
-function arcControl(a, b, CX, CY, R) {
-  const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
-  const vx = mx - CX, vy = my - CY, vlen = Math.hypot(vx, vy) || 1;
-  const dist = Math.hypot(b[0] - a[0], b[1] - a[1]);
-  const lift = Math.min(R * 0.9, dist * 0.42 + R * 0.12);
-  return [mx + (vx / vlen) * lift, my + (vy / vlen) * lift];
-}
 export function beamsLayer() {
   let layerEl, beams = [];
   return {
     name: "beams", z: 90,
     build(e) { layerEl = $("beams"); },
     spawn(e) {
-      if (!e.proj.visible(e.data.HQ.lnglat)) return; // can't land if HQ faces away
-      const enabled = e.data.ACTIVITY_TYPES.filter((t) => e.state.types[t.id].enabled);
-      if (!enabled.length) return;
-      const type = weightedPick(enabled, (t) => e.state.types[t.id].weight || 1);
-
-      let city = null;
-      for (let k = 0; k < 8; k++) {
-        const c = e.data.CITIES[(Math.random() * e.data.CITIES.length) | 0];
-        if (e.proj.visible(c.lnglat)) { city = c; break; }
-      }
-      if (!city) return;
+      const pick = pickBeam(e);
+      if (!pick) return;
+      const type = pick.type, city = pick.city;
 
       const ts = e.state.types[type.id];
       ts.count++;
@@ -511,7 +430,7 @@ export function beamsLayer() {
       for (let i = beams.length - 1; i >= 0; i--) {
         const b = beams[i];
         const age = now - b.t0;
-        if (age > LIFE_MS) { if (b.g.parentNode) b.g.parentNode.removeChild(b.g); beams.splice(i, 1); continue; }
+        if (age > BEAM.LIFE_MS) { if (b.g.parentNode) b.g.parentNode.removeChild(b.g); beams.splice(i, 1); continue; }
 
         const sp = proj.forward(b.src);
         const srcVis = !!sp && proj.visible(b.src);
@@ -521,18 +440,16 @@ export function beamsLayer() {
         }
 
         const C = arcControl(sp, hqp, CX, CY, R);
-        const drawP = Math.min(1, age / DRAW_MS);
-        const t = easeInOutCubic(drawP);
+        const t = easeInOutCubic(Math.min(1, age / BEAM.DRAW_MS));
 
         let d, hx, hy;
         if (t >= 1) {
           d = "M" + sp[0] + " " + sp[1] + "Q" + C[0] + " " + C[1] + " " + hqp[0] + " " + hqp[1];
           hx = hqp[0]; hy = hqp[1];
         } else {
-          const ax = lerp(sp[0], C[0], t), ay = lerp(sp[1], C[1], t);
-          const bx = lerp(C[0], hqp[0], t), by = lerp(C[1], hqp[1], t);
-          hx = lerp(ax, bx, t); hy = lerp(ay, by, t);
-          d = "M" + sp[0] + " " + sp[1] + "Q" + ax + " " + ay + " " + hx + " " + hy;
+          const s = quadSplit(sp, C, hqp, t);
+          hx = s.hx; hy = s.hy;
+          d = "M" + sp[0] + " " + sp[1] + "Q" + s.ax + " " + s.ay + " " + hx + " " + hy;
         }
         b.glow.setAttribute("d", d);
         b.core.setAttribute("d", d);
@@ -543,9 +460,7 @@ export function beamsLayer() {
           const u0 = Math.max(0, t - 0.17);
           let sd = "";
           for (let s = 0; s <= 6; s++) {
-            const u = u0 + (t - u0) * (s / 6), iu = 1 - u;
-            const qx = iu * iu * sp[0] + 2 * iu * u * C[0] + u * u * hqp[0];
-            const qy = iu * iu * sp[1] + 2 * iu * u * C[1] + u * u * hqp[1];
+            const [qx, qy] = quadPoint(sp, C, hqp, u0 + (t - u0) * (s / 6));
             sd += (s === 0 ? "M" : "L") + qx.toFixed(1) + " " + qy.toFixed(1);
           }
           b.spark.setAttribute("d", sd);
@@ -569,9 +484,7 @@ export function beamsLayer() {
         }
 
         // opacity envelope
-        let op = 1;
-        if (age > DRAW_MS + HOLD_MS) op = Math.max(0, 1 - (age - DRAW_MS - HOLD_MS) / FADE_MS);
-        b.g.style.opacity = op;
+        b.g.style.opacity = beamEnvelope(age);
       }
     },
   };
@@ -616,24 +529,15 @@ export function impactsLayer() {
 export function fireworksLayer() {
   let layerEl, parts = [];
   function burst(e, cx, cy, color, scale) {
-    scale = scale || 1;
+    const spec = fireworkBurst(e.R, scale, color);
     const flash = el("circle", { "class": "fw-flash", cx: cx, cy: cy, r: 3, fill: "#fff" });
     layerEl.appendChild(flash);
-    parts.push({ el: flash, flash: true, t: 0, ttl: 0.34, grow: e.R * 0.46 * scale });
-    const cols = [color, "#ffffff", tint(color)];
-    const N = Math.round(48 * scale);
-    for (let i = 0; i < N; i++) {
-      const ang = Math.random() * Math.PI * 2;
-      const core = i < N * 0.28;
-      const speed = (0.42 + Math.random() * 0.95) * e.R * 1.7 * scale * (core ? 1.3 : 1);
-      const col = core ? "#fff" : cols[(Math.random() * cols.length) | 0];
-      const c = el("circle", { "class": "fw-spark", r: core ? 1.5 : 2.1, fill: col });
-      c.style.filter = "drop-shadow(0 0 5px " + col + ")";
+    parts.push(Object.assign({ el: flash, flash: true, x: cx, y: cy }, spec.flash));
+    for (const s of spec.sparks) {
+      const c = el("circle", { "class": "fw-spark", r: s.r, fill: s.color });
+      c.style.filter = "drop-shadow(0 0 5px " + s.color + ")";
       layerEl.appendChild(c);
-      parts.push({
-        el: c, x: cx, y: cy, vx: Math.cos(ang) * speed, vy: Math.sin(ang) * speed,
-        t: 0, ttl: 0.9 + Math.random() * 0.8, twk: Math.random() * 10, twinkle: Math.random() < 0.55,
-      });
+      parts.push(Object.assign({ el: c, x: cx, y: cy }, s));
     }
   }
   return {
@@ -642,32 +546,23 @@ export function fireworksLayer() {
       layerEl = $("fireworks");
       parts = [];
       e.on("fireworks", (d) => {
-        const [x, y] = d.p, color = d.color, R = e.R;
-        burst(e, x, y, color, 1);
-        setTimeout(() => burst(e, x + (Math.random() * 2 - 1) * R * 0.20, y - R * 0.14 * Math.random() - R * 0.04, color, 0.72), 210);
-        setTimeout(() => burst(e, x + (Math.random() * 2 - 1) * R * 0.24, y - R * 0.02, tint(color), 0.66), 410);
+        const [x, y] = d.p;
+        for (const b of fireworkBarrage(e.R, d.color)) {
+          const fire = () => burst(e, x + b.dx, y + b.dy, b.color, b.scale);
+          b.delay ? setTimeout(fire, b.delay) : fire();
+        }
       });
     },
     draw(e) {
       if (!parts.length) return;
-      const dt = e.dt, grav = e.R * 1.25, drag = Math.max(0, 1 - 2.4 * dt);
+      const dt = e.dt;
       for (let i = parts.length - 1; i >= 0; i--) {
         const p = parts[i]; p.t += dt;
-        if (p.flash) {
-          const a = p.t / p.ttl;
-          if (a >= 1) { p.el.remove(); parts.splice(i, 1); continue; }
-          p.el.setAttribute("r", (3 + a * p.grow).toFixed(1));
-          p.el.style.opacity = (1 - a);
-          continue;
-        }
         if (p.t >= p.ttl) { p.el.remove(); parts.splice(i, 1); continue; }
-        p.vx *= drag; p.vy *= drag; p.vy += grav * dt;
-        p.x += p.vx * dt; p.y += p.vy * dt;
-        let op = 1 - p.t / p.ttl;
-        if (p.twinkle) op *= 0.45 + 0.55 * Math.abs(Math.sin(p.t * 16 + p.twk));
-        p.el.setAttribute("cx", p.x.toFixed(1));
-        p.el.setAttribute("cy", p.y.toFixed(1));
-        p.el.style.opacity = Math.max(0, op).toFixed(2);
+        stepFirework(p, dt, e.R);
+        if (p.flash) p.el.setAttribute("r", (3 + (p.t / p.ttl) * p.grow).toFixed(1));
+        else { p.el.setAttribute("cx", p.x.toFixed(1)); p.el.setAttribute("cy", p.y.toFixed(1)); }
+        p.el.style.opacity = fireworkAlpha(p).toFixed(2);
       }
     },
   };
