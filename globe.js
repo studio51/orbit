@@ -55,7 +55,6 @@
 
   // ---- geometry / projection ---------------------------------------------
   var svg = document.getElementById("globe-svg");
-  var gGlobe = document.getElementById("g-globe");
   var sphereEl = document.getElementById("sphere");
   var sphereGlow = document.getElementById("sphere-glow");
   var highlightEl = document.getElementById("sphere-highlight");
@@ -832,10 +831,8 @@
 
     // cosmos
     shootingLayer.style.display = scene.shootingStars ? "" : "none";
-    if (!scene.atmosPulse) {
-      sphereGlow.style.opacity = (0.7 * scene.atmos).toFixed(2);
-      bottomGlow.style.opacity = scene.atmos.toFixed(2);
-    }
+    // when the atmosphere pulse is off, the static glow opacity set above stands;
+    // when on, the main loop drives sphereGlow / bottomGlow opacity each frame.
     var aDrift1 = scene.starDrift ? "drift1 140s linear infinite" : "";
     var aDrift2 = scene.starDrift ? "drift2 200s linear infinite" : "";
     var aTw1 = scene.starTwinkle ? "tw1 5.5s ease-in-out infinite" : "";
@@ -1012,9 +1009,6 @@
       pause.classList.toggle("paused", state.paused);
       pause.querySelector(".pp-label").textContent = state.paused ? "Play" : "Pause";
     });
-
-    var lbl = document.getElementById("labels-toggle");
-    if (lbl) lbl.remove();
 
     // fireworks controls
     var fwSel = document.getElementById("fw-trigger");
