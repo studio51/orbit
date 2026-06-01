@@ -5,28 +5,30 @@
  * and notify the engine when a change needs a structural rebuild. Both
  * renderers reuse this verbatim so their controls behave identically.
  */
-import { SCENE_SPEC, saveScene, STORAGE } from "./config.js";
+import { SCENE_SCHEMA, formatValue } from "./scene-schema.js";
+import { saveScene, STORAGE } from "./config.js";
 
 const STRUCTURAL_KEYS = new Set(["density"]); // changes that require a rebuild
 
-// ---- "Scene & effects" gear panel --------------------------------------
+// ---- "Scene & effects" gear panel (demo only) --------------------------
+// Rendered straight from the schema, so adding a setting there adds a control here.
 export function buildScenePanel({ host, toggle, scene, onChange }) {
+  const fields = SCENE_SCHEMA.sections.flatMap((s) => s.fields);
   const byKey = {};
-  SCENE_SPEC.forEach((c) => { if (c.k) byKey[c.k] = c; });
+  fields.forEach((f) => { byKey[f.key] = f; });
 
-  host.innerHTML = SCENE_SPEC.map(ctrlHTML).join("");
+  host.innerHTML = SCENE_SCHEMA.sections.map(sectionHTML).join("");
 
   // hydrate controls from current scene
-  SCENE_SPEC.forEach((c) => {
-    if (!c.k) return;
-    if (c.t === "slider") {
-      host.querySelector(`[data-k="${c.k}"]`).value = scene[c.k];
-      host.querySelector(`[data-val="${c.k}"]`).textContent = c.fmt(+scene[c.k]);
-    } else if (c.t === "toggle") {
-      host.querySelector(`[data-tog="${c.k}"]`).setAttribute("aria-pressed", scene[c.k] ? "true" : "false");
-    } else if (c.t === "seg") {
-      host.querySelectorAll(`[data-seg="${c.k}"]`).forEach((bn) => {
-        bn.classList.toggle("on", bn.getAttribute("data-v") === scene[c.k]);
+  fields.forEach((f) => {
+    if (f.type === "range") {
+      host.querySelector(`[data-k="${f.key}"]`).value = scene[f.key];
+      host.querySelector(`[data-val="${f.key}"]`).textContent = formatValue(f, scene[f.key]);
+    } else if (f.type === "toggle") {
+      host.querySelector(`[data-tog="${f.key}"]`).setAttribute("aria-pressed", scene[f.key] ? "true" : "false");
+    } else if (f.type === "select") {
+      host.querySelectorAll(`[data-seg="${f.key}"]`).forEach((bn) => {
+        bn.classList.toggle("on", bn.getAttribute("data-v") === scene[f.key]);
       });
     }
   });
@@ -37,7 +39,7 @@ export function buildScenePanel({ host, toggle, scene, onChange }) {
     const k = e.target.getAttribute("data-k");
     if (!k) return;
     scene[k] = +e.target.value;
-    host.querySelector(`[data-val="${k}"]`).textContent = byKey[k].fmt(scene[k]);
+    host.querySelector(`[data-val="${k}"]`).textContent = formatValue(byKey[k], scene[k]);
     commit(k);
   });
 
@@ -71,20 +73,22 @@ export function buildScenePanel({ host, toggle, scene, onChange }) {
   if (wasOpen) setOpen(true);
 }
 
-function ctrlHTML(c) {
-  if (c.sec) return `<div class="sec-h">${c.sec}</div>`;
-  if (c.t === "slider") {
-    return `<div class="sc-slider"><div class="sc-top"><span class="sc-lbl">${c.l}</span>` +
-      `<span class="sc-val" data-val="${c.k}"></span></div>` +
-      `<input type="range" data-k="${c.k}" min="${c.min}" max="${c.max}" step="${c.step}"></div>`;
+function sectionHTML(section) {
+  return `<div class="sec-h">${section.title}</div>` + section.fields.map(fieldHTML).join("");
+}
+function fieldHTML(f) {
+  if (f.type === "range") {
+    return `<div class="sc-slider"><div class="sc-top"><span class="sc-lbl">${f.label}</span>` +
+      `<span class="sc-val" data-val="${f.key}"></span></div>` +
+      `<input type="range" data-k="${f.key}" min="${f.min}" max="${f.max}" step="${f.step}"></div>`;
   }
-  if (c.t === "toggle") {
-    return `<div class="sc-row"><span class="sc-lbl">${c.l}</span>` +
-      `<button class="sw" data-tog="${c.k}" aria-pressed="false"></button></div>`;
+  if (f.type === "toggle") {
+    return `<div class="sc-row"><span class="sc-lbl">${f.label}</span>` +
+      `<button class="sw" data-tog="${f.key}" aria-pressed="false"></button></div>`;
   }
-  if (c.t === "seg") {
-    const b = c.opts.map((o) => `<button data-seg="${c.k}" data-v="${o[0]}">${o[1]}</button>`).join("");
-    return `<div class="sc-slider"><div class="sc-top"><span class="sc-lbl">${c.l}</span></div><div class="sc-seg">${b}</div></div>`;
+  if (f.type === "select") {
+    const b = f.options.map((o) => `<button data-seg="${f.key}" data-v="${o.value}">${o.label}</button>`).join("");
+    return `<div class="sc-slider"><div class="sc-top"><span class="sc-lbl">${f.label}</span></div><div class="sc-seg">${b}</div></div>`;
   }
   return "";
 }

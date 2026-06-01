@@ -21,7 +21,8 @@ variable is how pixels reach the screen.
 | Module | Responsibility |
 | ------ | -------------- |
 | `data.js` | HQ, activity types, cities, ticker verbs, map URLs — **the file you edit to customise** |
-| `config.js` | Scene defaults, the panel spec, persistence |
+| `scene-schema.js` | the JSON settings contract — fields/bounds/defaults + `sanitizeScene()` |
+| `config.js` | scene defaults (from schema), sim defaults, `resolveScene()` (API / inline / demo) |
 | `engine.js` | `BaseEngine` — the loop, layer registry, rotation, drag, spawn cadence, sun, event bus |
 | `geo.js` | `Projection` — wraps `d3.geoOrthographic`, adds the fast forward-projection + sun/terminator |
 | `geometry.js` | pure geometry — orbit rings, aurora bands, land/spike/node builds, beam-arc math |

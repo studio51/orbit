@@ -1,32 +1,33 @@
-/* games.directory globe — Canvas2D entry point */
+/* games.directory globe — Canvas2D entry point
+ *
+ * Modes:
+ *   • clean (default)  — the production hero: globe + brand + live ticker, no controls.
+ *   • demo (?demo)     — adds the FPS meter and the full control / "Scene & effects" panel.
+ *
+ * Scene source (all validated against the schema before use):
+ *   • window.__GD_SCENE__   inline embed from the platform        (highest priority)
+ *   • ?config=<url>         fetch the per-deployment config JSON
+ *   • ?demo                 the demo's own localStorage
+ *   • otherwise             schema defaults
+ */
 import { HQ, ACTIVITY_TYPES, CITIES, VERBS, LAND_URLS } from "../shared/data.js";
-import { loadScene, SIM_DEFAULTS } from "../shared/config.js";
+import { SIM_DEFAULTS, resolveScene } from "../shared/config.js";
 import { buildScenePanel, buildActivityControls, buildBaseControls, createTicker } from "../shared/ui.js";
 import { createFpsMeter } from "../shared/fps.js";
 import { Engine } from "./engine.js";
 import { registerDefaultLayers } from "./layers.js";
 
+const params = new URLSearchParams(location.search);
+const demo = params.has("demo");
+document.body.classList.toggle("demo", demo);
+
 const canvas = document.getElementById("globe-canvas");
-const scene = loadScene();
 const sim = { ...SIM_DEFAULTS };
 const data = { HQ, ACTIVITY_TYPES, CITIES, landFeature: null };
 
+const scene = await resolveScene({ demo, configUrl: params.get("config"), inline: window.__GD_SCENE__ });
 const engine = new Engine({ canvas, scene, sim, data });
 registerDefaultLayers(engine);
-engine.fps = createFpsMeter("canvas");
-
-// ---- UI wiring ---------------------------------------------------------
-const activities = buildActivityControls({
-  list: document.getElementById("activity-list"),
-  types: ACTIVITY_TYPES,
-  state: engine.state,
-});
-engine.onCount((id) => activities.bump(id));
-
-const ticker = createTicker(document.getElementById("ticker"), VERBS);
-engine.on("beam", ({ type, city, color }) => ticker.push(type, city.name, color));
-
-buildBaseControls({ sim, types: ACTIVITY_TYPES });
 
 function applyStarfield() {
   const stars = document.querySelectorAll(".stars");
@@ -37,17 +38,31 @@ function applyStarfield() {
       .filter(Boolean).join(", ");
   });
 }
-
-buildScenePanel({
-  host: document.getElementById("scene"),
-  toggle: document.getElementById("scene-toggle"),
-  scene,
-  onChange: (key, structural) => {
-    if (structural) engine.rebuildFor(key);
-    if (key === "starDrift" || key === "starTwinkle") applyStarfield();
-  },
-});
 applyStarfield();
+
+// Live ticker is part of the hero spectacle — shown in both modes.
+const ticker = createTicker(document.getElementById("ticker"), VERBS);
+engine.on("beam", ({ type, city, color }) => ticker.push(type, city.name, color));
+
+// Controls + FPS meter are demo-only; the production hero stays clean.
+if (demo) {
+  engine.fps = createFpsMeter("canvas");
+  const activities = buildActivityControls({
+    list: document.getElementById("activity-list"), types: ACTIVITY_TYPES, state: engine.state,
+  });
+  engine.onCount((id) => activities.bump(id));
+  buildBaseControls({ sim, types: ACTIVITY_TYPES });
+  buildScenePanel({
+    host: document.getElementById("scene"),
+    toggle: document.getElementById("scene-toggle"),
+    scene,
+    onChange: (key, structural) => {
+      if (structural) engine.rebuildFor(key);
+      engine.applyScene();
+      if (key === "starDrift" || key === "starTwinkle") applyStarfield();
+    },
+  });
+}
 
 // ---- load world topology, then go --------------------------------------
 function fail(msg) {

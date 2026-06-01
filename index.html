@@ -92,14 +92,14 @@
     </p>
 
     <div class="cards">
-      <a class="card recommend" href="canvas/index.html">
+      <a class="card recommend" href="canvas/index.html?demo">
         <div class="tag">Renderer A</div>
         <h2>Canvas 2D</h2>
         <p>Immediate-mode drawing to a single canvas. The whole frame is cleared and
            redrawn each tick — no persistent nodes, no per-frame DOM work. Built for FPS.</p>
         <div class="meta"><span>high fps</span><span>additive glows</span><span>DPR-aware</span></div>
       </a>
-      <a class="card" href="svg/index.html">
+      <a class="card" href="svg/index.html?demo">
         <div class="tag">Renderer B</div>
         <h2>SVG</h2>
         <p>Retained-mode: persistent SVG nodes whose attributes are updated each frame.
@@ -116,7 +116,10 @@
     <p class="foot">
       Needs a static server (the world map is fetched at runtime):
       <code>python3 -m http.server 8000</code> → <code>http://localhost:8000</code><br>
-      Customise HQ, cities and activity types in <code>shared/data.js</code>; tune visuals live via the in-app <b>Scene &amp; effects</b> panel.
+      The links above open <b>demo mode</b> (<code>?demo</code>) with live controls + FPS. The bare
+      <code>canvas/</code> or <code>svg/</code> URL is the <b>clean hero</b> — globe only, no controls.<br>
+      Customise HQ / cities / activity types in <code>shared/data.js</code>; scene settings come from the
+      platform (<code>?config=&lt;url&gt;</code> or <code>window.__GD_SCENE__</code>), bounded by <code>shared/scene-schema.js</code>.
     </p>
   </main>
 
@@ -138,8 +141,8 @@
     // chooser cheap and avoids two globes fetching the map up front).
     const enter = () => {
       document.body.classList.add("compare");
-      document.getElementById("f-canvas").src = "canvas/index.html";
-      document.getElementById("f-svg").src = "svg/index.html";
+      document.getElementById("f-canvas").src = "canvas/index.html?demo";
+      document.getElementById("f-svg").src = "svg/index.html?demo";
       location.hash = "compare";
     };
     document.getElementById("compare").addEventListener("click", enter);

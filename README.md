@@ -60,7 +60,8 @@ data, config and UI all live in `shared/`, so there's no duplicated logic.
 index.html        chooser + side-by-side compare
 shared/           used by BOTH renderers
   data.js         HQ, activity types, cities — the file you edit to customise
-  config.js       scene defaults, panel spec, persistence
+  scene-schema.js the JSON settings contract: fields, bounds, defaults, sanitiser
+  config.js       scene defaults (from schema), sim defaults, resolveScene()
   engine.js       BaseEngine: loop, layer registry, rotation, drag, spawn cadence
   geo.js          Projection (d3.geoOrthographic) + fast projection + sun
   geometry.js     pure geometry: orbit/aurora bands, land/spike/node builds, arc math
@@ -81,14 +82,45 @@ all behaviour comes from `shared/`. Adding an effect = write a layer factory in
 D3 v7 and `topojson-client` load from a CDN; world landmass topology
 (`world-atlas`) is fetched at runtime with fallback CDNs.
 
+## Modes: clean hero vs demo
+
+- **Clean (default)** — `/canvas/` or `/svg/`: just the globe, brand and live
+  ticker. No controls, no FPS meter. This is what you embed on the landing page.
+- **Demo** — add `?demo` (`/canvas/?demo`): adds the FPS meter and the full
+  control + **Scene & effects** panel for tuning. The chooser links here.
+
+## Configuration & the platform contract
+
+Scene settings are defined once in [`shared/scene-schema.js`](shared/scene-schema.js)
+as plain, JSON-serialisable data — every field's type, label, bounds and default.
+That single schema is the contract with the games.directory platform:
+
+- the platform reads `SCENE_SCHEMA` (serve it with `JSON.stringify`) to render its
+  own settings UI — labels, ranges, options;
+- the globe runs **`sanitizeScene()`** on every incoming config, so out-of-range
+  or unknown values can never reach the renderer (it clamps to bounds, validates
+  selects, coerces toggles, drops unknown keys);
+- defaults are derived from the schema — there's no second copy to drift.
+
+At runtime the scene is resolved by `resolveScene()` in this precedence:
+
+1. **`window.__GD_SCENE__`** — an inline config object the platform embeds;
+2. **`?config=<url>`** — fetched per-deployment config JSON (from your API);
+3. **`?demo`** — the demo panel's own `localStorage`;
+4. otherwise — schema defaults.
+
+So the platform stores a validated config (bounded by the schema), and the plugin
+pulls it via inline embed or API; nothing else changes between deployments.
+
 ## Customising & extending
 
-- **Make it yours:** edit [`shared/data.js`](shared/data.js) — HQ location,
-  cities, activity types (label / colour / weight). No other file needs touching.
-- **Tune the look:** use the in-app **Scene & effects** panel (it persists), or
-  change the defaults in [`shared/config.js`](shared/config.js).
+- **Make it yours:** edit [`shared/data.js`](shared/data.js) — HQ, cities,
+  activity types (label / colour / weight).
+- **Add/adjust a setting:** add a field to [`shared/scene-schema.js`](shared/scene-schema.js)
+  — the default, the demo control, and bounds-validation all follow automatically.
 - **Add an effect:** add a layer factory to `canvas/layers.js` (and/or
-  `svg/layers.js`) and register it in `registerDefaultLayers()`.
+  `svg/layers.js`, using the shared geometry/sim helpers) and register it in
+  `registerDefaultLayers()`.
 
 ## Running
 
@@ -100,4 +132,5 @@ python3 -m http.server 8000
 # then open http://localhost:8000
 ```
 
-Open the chooser at `/`, or go straight to `/canvas/` or `/svg/`.
+Open the chooser at `/`, the clean hero at `/canvas/`, or the tunable demo at
+`/canvas/?demo`.
