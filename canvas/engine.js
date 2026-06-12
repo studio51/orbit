@@ -20,6 +20,7 @@ export class Engine extends BaseEngine {
   resizeBackend() {
     this.canvas.width = Math.round(this.W * this.dpr);
     this.canvas.height = Math.round(this.H * this.dpr);
+
     this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
   }
 
@@ -29,6 +30,7 @@ export class Engine extends BaseEngine {
 
   renderFrame() {
     this.ctx.clearRect(0, 0, this.W, this.H);
+
     for (const l of this.layers) {
       if (l.visible && !l.visible(this)) continue;
       l.draw(this);

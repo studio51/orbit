@@ -15,6 +15,7 @@ const STRUCTURAL_KEYS = new Set(['density']); // changes that require a rebuild
 export function buildScenePanel({ host, toggle, scene, onChange }) {
   const fields = SCENE_SCHEMA.sections.flatMap((s) => s.fields);
   const byKey = {};
+
   fields.forEach((f) => {
     byKey[f.key] = f;
   });
@@ -39,30 +40,38 @@ export function buildScenePanel({ host, toggle, scene, onChange }) {
 
   const commit = (k) => {
     saveScene(scene);
+
     onChange(k, STRUCTURAL_KEYS.has(k));
   };
 
   host.addEventListener('input', (e) => {
     const k = e.target.getAttribute('data-k');
+
     if (!k) return;
     scene[k] = +e.target.value;
     host.querySelector(`[data-val="${k}"]`).textContent = formatValue(byKey[k], scene[k]);
+
     commit(k);
   });
 
   host.addEventListener('click', (e) => {
     const tog = e.target.closest('[data-tog]');
+
     if (tog) {
       const k = tog.getAttribute('data-tog');
+
       scene[k] = !scene[k];
       tog.setAttribute('aria-pressed', scene[k] ? 'true' : 'false');
       commit(k);
       return;
     }
+
     const seg = e.target.closest('[data-seg]');
+
     if (seg) {
       const k = seg.getAttribute('data-seg'),
         v = seg.getAttribute('data-v');
+
       scene[k] = v;
       host
         .querySelectorAll(`[data-seg="${k}"]`)
@@ -75,6 +84,7 @@ export function buildScenePanel({ host, toggle, scene, onChange }) {
   function setOpen(open) {
     host.toggleAttribute('hidden', !open);
     toggle.setAttribute('aria-pressed', open ? 'true' : 'false');
+
     try {
       localStorage.setItem(STORAGE.sceneOpen, open ? '1' : '0');
     } catch (e) {
@@ -82,12 +92,15 @@ export function buildScenePanel({ host, toggle, scene, onChange }) {
     }
   }
   toggle.addEventListener('click', () => setOpen(host.hasAttribute('hidden')));
+
   let wasOpen = false;
+
   try {
     wasOpen = localStorage.getItem(STORAGE.sceneOpen) === '1';
   } catch (e) {
     /* ignore */
   }
+
   if (wasOpen) setOpen(true);
 }
 
@@ -112,8 +125,10 @@ function fieldHTML(f) {
     const b = f.options
       .map((o) => `<button data-seg="${f.key}" data-v="${o.value}">${o.label}</button>`)
       .join('');
+
     return `<div class="sc-slider"><div class="sc-top"><span class="sc-lbl">${f.label}</span></div><div class="sc-seg">${b}</div></div>`;
   }
+
   return '';
 }
 
@@ -121,6 +136,7 @@ function fieldHTML(f) {
 export function buildActivityControls({ list, types, state }) {
   types.forEach((t) => {
     const row = document.createElement('div');
+
     row.className = 'act-row';
     row.innerHTML =
       `<label class="swatch" style="--c:${t.color}">` +
@@ -129,33 +145,44 @@ export function buildActivityControls({ list, types, state }) {
       `<span class="act-count" data-count="${t.id}">0</span>` +
       `<button class="eye" data-toggle="${t.id}" aria-pressed="true" title="Toggle">` +
       `<span class="eye-dot"></span></button>`;
+
     list.appendChild(row);
   });
 
   list.addEventListener('input', (e) => {
     const id = e.target.getAttribute('data-color');
+
     if (!id) return;
     state.types[id].color = e.target.value;
+
     e.target.closest('.swatch').style.setProperty('--c', e.target.value);
   });
   list.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-toggle]');
+
     if (!btn) return;
+
     const id = btn.getAttribute('data-toggle');
     const on = !state.types[id].enabled;
+
     state.types[id].enabled = on;
     btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+
     btn.closest('.act-row').classList.toggle('off', !on);
   });
 
   const totalEl = document.getElementById('total-count');
+
   return {
     // refresh the per-type and grand-total counters
     bump(id) {
       const node = list.querySelector(`[data-count="${id}"]`);
+
       if (node) node.textContent = state.types[id].count.toLocaleString();
+
       if (totalEl) {
         let total = 0;
+
         for (const k in state.types) total += state.types[k].count;
         totalEl.textContent = total.toLocaleString();
       }
@@ -167,6 +194,7 @@ export function buildActivityControls({ list, types, state }) {
 export function buildBaseControls({ sim, types }) {
   const rate = document.getElementById('rate');
   const rateVal = document.getElementById('rate-val');
+
   rate.value = sim.rate;
   rateVal.textContent = sim.rate.toFixed(1) + '/s';
   rate.addEventListener('input', () => {
@@ -176,6 +204,7 @@ export function buildBaseControls({ sim, types }) {
 
   const rot = document.getElementById('rot');
   const rotVal = document.getElementById('rot-val');
+
   rot.value = sim.rotSpeed;
   rotVal.textContent = sim.rotSpeed === 0 ? 'off' : sim.rotSpeed + '°/s';
   rot.addEventListener('input', () => {
@@ -184,18 +213,23 @@ export function buildBaseControls({ sim, types }) {
   });
 
   const pause = document.getElementById('pause');
+
   pause.addEventListener('click', () => {
     sim.paused = !sim.paused;
     pause.classList.toggle('paused', sim.paused);
+
     pause.querySelector('.pp-label').textContent = sim.paused ? 'Play' : 'Pause';
   });
 
   const fwSel = document.getElementById('fw-trigger');
+
   types.forEach((t) => {
     const o = document.createElement('option');
+
     o.value = t.id;
     o.textContent = t.label;
     if (t.id === sim.fwTrigger) o.selected = true;
+
     fwSel.appendChild(o);
   });
   fwSel.value = sim.fwTrigger;
@@ -204,9 +238,11 @@ export function buildBaseControls({ sim, types }) {
   });
 
   const fwTog = document.getElementById('fw-toggle');
+
   fwTog.addEventListener('click', () => {
     sim.fireworks = !sim.fireworks;
     fwTog.setAttribute('aria-pressed', sim.fireworks ? 'true' : 'false');
+
     fwTog.closest('.fw-row').classList.toggle('off', !sim.fireworks);
   });
 }
@@ -214,28 +250,35 @@ export function buildBaseControls({ sim, types }) {
 // ---- live ticker (top-right) -------------------------------------------
 export function createTicker(el, verbs) {
   let lastTick = -1e9;
+
   return {
     push(type, cityName, color) {
       const now = performance.now();
+
       if (now - lastTick < 220) return; // throttle so high rates don't thrash the DOM
       lastTick = now;
+
       const line = document.createElement('div');
+
       line.className = 'tk-line';
       line.innerHTML =
         `<span class="tk-dot" style="color:${color};background:${color}"></span>` +
         `<span class="tk-txt">${verbs[type.id] || type.label}` +
         ` <span class="tk-city">· ${cityName}</span></span>`;
       el.insertBefore(line, el.firstChild);
+
       while (el.children.length > 7) el.removeChild(el.lastChild);
     },
     // surge callout — a highlighted line that bypasses the throttle
     special(text) {
       const line = document.createElement('div');
+
       line.className = 'tk-line tk-surge';
       line.innerHTML =
         `<span class="tk-dot" style="color:#5ad1ff;background:#5ad1ff"></span>` +
         `<span class="tk-txt">${text}</span>`;
       el.insertBefore(line, el.firstChild);
+
       while (el.children.length > 7) el.removeChild(el.lastChild);
     },
   };

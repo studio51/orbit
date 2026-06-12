@@ -18,8 +18,11 @@ import { DEG } from './util.js';
 
 export class Projection {
   #lastSun = -1e9;
+
   #graticule = null;
+
   #nightShape = null;
+
   #coreShape = null;
 
   constructor() {
@@ -43,6 +46,7 @@ export class Projection {
     this.R = R;
     this.cx = cx;
     this.cy = cy;
+
     this.d3proj.scale(R).translate([cx, cy]);
   }
 
@@ -54,7 +58,9 @@ export class Projection {
 
     this.d3proj.rotate(this.rotation);
     this.lon0 = -this.rotation[0] * DEG;
+
     const lat0 = -this.rotation[1] * DEG;
+
     this.sinLat0 = Math.sin(lat0);
     this.cosLat0 = Math.cos(lat0);
   }
@@ -75,14 +81,19 @@ export class Projection {
   // circles are rebuilt only when the sun moves (see updateSun).
   graticule() {
     if (!this.#graticule) this.#graticule = d3.geoGraticule().step([20, 20])();
+
     return this.#graticule;
   }
+
   nightShape() {
     if (!this.#nightShape) this.#nightShape = d3.geoCircle().radius(90).center(this.antisolar)();
+
     return this.#nightShape;
   }
+
   coreShape() {
     if (!this.#coreShape) this.#coreShape = d3.geoCircle().radius(116).center(this.antisolar)();
+
     return this.#coreShape;
   }
 
@@ -94,6 +105,7 @@ export class Projection {
     const dlon = this.sun.lon - this.lon0;
     const cd = Math.cos(dlon),
       sd = Math.sin(dlon);
+
     return {
       x: this.sun.cosLat * sd,
       y: this.cosLat0 * this.sun.sinLat - this.sinLat0 * this.sun.cosLat * cd,
@@ -115,6 +127,7 @@ export class Projection {
     const declDeg = -23.44 * Math.cos((360 / 365) * (doy + 10) * DEG);
 
     const lonR = lonDeg * DEG;
+
     this.sun.lon = lonR;
     this.sun.sinLon = Math.sin(lonR);
     this.sun.cosLon = Math.cos(lonR);

@@ -62,6 +62,7 @@ export async function resolveScene({ demo = false, configUrl = null, inline = nu
   if (configUrl) {
     try {
       const r = await fetch(configUrl, { headers: { Accept: 'application/json' } });
+
       if (r.ok) return sanitizeScene(await r.json());
     } catch (e) {
       /* fall through to defaults */
@@ -69,5 +70,6 @@ export async function resolveScene({ demo = false, configUrl = null, inline = nu
     return sceneDefaults();
   }
   if (demo) return loadScene();
+
   return sceneDefaults();
 }

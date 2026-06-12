@@ -5,6 +5,7 @@
  */
 export function createFpsMeter(label = '') {
   const el = document.createElement('div');
+
   el.className = 'fps-meter';
   el.innerHTML =
     `<span class="fps-num">–</span><span class="fps-unit">fps</span>` +
@@ -26,6 +27,7 @@ export function createFpsMeter(label = '') {
     tick(now) {
       if (last) {
         const dt = now - last;
+
         emaMs = emaMs * 0.9 + dt * 0.1;
         acc += dt;
         frames++;
@@ -35,6 +37,7 @@ export function createFpsMeter(label = '') {
       if (now - shownAt > 250 && frames) {
         const avg = acc / frames;
         const fps = avg > 0 ? Math.round(1000 / avg) : 0;
+
         numEl.textContent = fps;
         msEl.textContent = emaMs.toFixed(1) + ' ms';
         el.classList.toggle('warn', fps < 50);

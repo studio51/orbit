@@ -235,7 +235,9 @@ export function sceneFields() {
 // { key: default } for every field.
 export function sceneDefaults() {
   const out = {};
+
   for (const f of sceneFields()) out[f.key] = f.default;
+
   return out;
 }
 
@@ -245,8 +247,10 @@ export function sceneDefaults() {
 export function sanitizeScene(input) {
   const src = input && typeof input === 'object' ? input : {};
   const out = {};
+
   for (const f of sceneFields()) {
     const v = src[f.key];
+
     if (f.type === 'toggle') {
       out[f.key] = typeof v === 'boolean' ? v : f.default;
     } else if (f.type === 'select') {
@@ -254,6 +258,7 @@ export function sanitizeScene(input) {
     } else {
       // range
       let n = Number(v);
+
       if (!Number.isFinite(n)) n = f.default;
       n = Math.min(f.max, Math.max(f.min, n));
       if (f.step)
@@ -261,6 +266,7 @@ export function sanitizeScene(input) {
       out[f.key] = Number(n.toFixed(6)); // kill binary-float dust from snapping
     }
   }
+
   return out;
 }
 
@@ -268,5 +274,6 @@ export function sanitizeScene(input) {
 export function formatValue(field, value) {
   if (field.display === 'pct') return Math.round(value * 100) + '%';
   if (field.display === 'pctOfMax') return Math.round((value / field.max) * 100) + '%';
+
   return Number(value).toFixed(field.decimals ?? 0) + (field.unit || '');
 }

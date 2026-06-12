@@ -25,6 +25,7 @@ export function arcControl(a, b, CX, CY, R) {
     vlen = Math.hypot(vx, vy) || 1;
   const dist = Math.hypot(b[0] - a[0], b[1] - a[1]);
   const lift = Math.min(R * 0.9, dist * 0.42 + R * 0.12);
+
   return [mx + (vx / vlen) * lift, my + (vy / vlen) * lift];
 }
 // De Casteljau split of the quadratic (p0,cp,p1) at t → the partial curve's
@@ -34,11 +35,13 @@ export function quadSplit(p0, cp, p1, t) {
     ay = p0[1] + (cp[1] - p0[1]) * t;
   const bx = cp[0] + (p1[0] - cp[0]) * t,
     by = cp[1] + (p1[1] - cp[1]) * t;
+
   return { ax, ay, hx: ax + (bx - ax) * t, hy: ay + (by - ay) * t };
 }
 // Point on the quadratic at parameter u.
 export function quadPoint(p0, cp, p1, u) {
   const iu = 1 - u;
+
   return [
     iu * iu * p0[0] + 2 * iu * u * cp[0] + u * u * p1[0],
     iu * iu * p0[1] + 2 * iu * u * cp[1] + u * u * p1[1],
@@ -51,13 +54,17 @@ export function quadPoint(p0, cp, p1, u) {
 // fields (`lng`, `tier`) are kept for compatibility with the SVG build.
 export function buildLandDots(feature, step) {
   const recs = [];
+
   for (let lat = -84; lat <= 84; lat += step) {
     const ringStep = step / Math.max(0.18, Math.cos(lat * DEG));
+
     for (let l = -180; l < 180; l += ringStep) {
       if (!d3.geoContains(feature, [l, lat])) continue;
+
       const latR = lat * DEG,
         lngR = l * DEG;
       const r = Math.random();
+
       recs.push({
         sin: Math.sin(latR),
         cos: Math.cos(latR),
@@ -72,6 +79,7 @@ export function buildLandDots(feature, step) {
     }
   }
   recs.sort((a, b) => a.tier - b.tier);
+
   const n = recs.length;
   const d = {
     sin: new Float32Array(n),
@@ -86,8 +94,10 @@ export function buildLandDots(feature, step) {
     n,
     pts: new Array(n),
   };
+
   for (let i = 0; i < n; i++) {
     const r = recs[i];
+
     d.sin[i] = r.sin;
     d.cos[i] = r.cos;
     d.lng[i] = r.lng;
@@ -100,6 +110,7 @@ export function buildLandDots(feature, step) {
     if (r.tier === 0) d.tierEnd[0] = i + 1;
     if (r.tier <= 1) d.tierEnd[1] = i + 1;
   }
+
   return d;
 }
 
@@ -112,11 +123,14 @@ export function buildSpikes(step = 7) {
     cosLngA = [],
     lenA = [],
     phA = [];
+
   for (let lat = -86; lat <= 86; lat += step) {
     const ringStep = step / Math.max(0.16, Math.cos(lat * DEG));
+
     for (let l = -180; l < 180; l += ringStep) {
       const latR = lat * DEG,
         lngR = l * DEG;
+
       sinA.push(Math.sin(latR));
       cosA.push(Math.cos(latR));
       lngA.push(lngR);
@@ -126,6 +140,7 @@ export function buildSpikes(step = 7) {
       phA.push(Math.random() * TAU);
     }
   }
+
   return {
     sin: Float32Array.from(sinA),
     cos: Float32Array.from(cosA),
@@ -141,6 +156,7 @@ export function buildSpikes(step = 7) {
 // ---- star nodes --------------------------------------------------------
 export function pickNodes(pts, count = 18) {
   const nodes = [];
+
   if (!pts || !pts.length) return nodes;
   for (let i = 0; i < count; i++) {
     nodes.push({
@@ -150,6 +166,7 @@ export function pickNodes(pts, count = 18) {
       size: 1.3 + Math.random() * 1.6,
     });
   }
+
   return nodes;
 }
 
@@ -175,6 +192,7 @@ export function computeOrbit(cfg, o, R, CX, CY, now, N = 84) {
     bSeg = null,
     sat = null;
   const satIdx = (((now * 0.0004 * (o + 1)) % 1) * N) | 0;
+
   for (let k = 0; k <= N; k++) {
     const a = (k / N) * TAU;
     const x0 = Math.cos(a),
@@ -187,6 +205,7 @@ export function computeOrbit(cfg, o, R, CX, CY, now, N = 84) {
       y2 = y1; // spin around Y
     const sx = CX + x2 * Rr,
       syc = CY - y2 * Rr;
+
     if (z2 >= 0) {
       if (!fSeg) {
         fSeg = [];
@@ -204,6 +223,7 @@ export function computeOrbit(cfg, o, R, CX, CY, now, N = 84) {
     }
     if (cfg.sat && k === satIdx) sat = { x: sx, y: syc, front: z2 >= 0 };
   }
+
   return { front, back, sat };
 }
 
@@ -211,6 +231,7 @@ export function computeOrbit(cfg, o, R, CX, CY, now, N = 84) {
 export function auroraSpecs(scene) {
   const sch = AURORA_SCHEMES[scene.auroraScheme] || AURORA_SCHEMES.gv;
   const bl = scene.auroraLat;
+
   return [
     { lat: bl, amp: 4.5, phase: 0, col: sch[0], width: 5.5, op0: 0.34, opPh: 0 },
     { lat: bl + 2.5, amp: 5.5, phase: 1.6, col: sch[1], width: 3.5, op0: 0.3, opPh: 1.7 },
@@ -218,14 +239,17 @@ export function auroraSpecs(scene) {
     { lat: -bl - 2.5, amp: 5.5, phase: 3.9, col: sch[1], width: 3.5, op0: 0.3, opPh: 4.6 },
   ];
 }
+
 // Fixed longitude sample points for the aurora bands (4° apart) — their sin/cos
 // never change, so they live in a build-once table.
 const AUR_N = 91;
 const AUR_LNG = new Float64Array(AUR_N),
   AUR_SIN = new Float64Array(AUR_N),
   AUR_COS = new Float64Array(AUR_N);
+
 for (let i = 0; i < AUR_N; i++) {
   const lngR = (-180 + i * 4) * DEG;
+
   AUR_LNG[i] = lngR;
   AUR_SIN[i] = Math.sin(lngR);
   AUR_COS[i] = Math.cos(lngR);
@@ -238,6 +262,7 @@ export function auroraSegments(proj, CX, CY, R, baseLat, amp, phase, now, speed)
   const t = now * 0.0006 * speed;
   const segs = [];
   let seg = null;
+
   for (let i = 0; i < AUR_N; i++) {
     const lngR = AUR_LNG[i];
     const lat =
@@ -249,18 +274,22 @@ export function auroraSegments(proj, CX, CY, R, baseLat, amp, phase, now, speed)
       cosL = Math.cos(latR);
     const cd = AUR_COS[i] * cosLon0 + AUR_SIN[i] * sinLon0; // cos(lng − lon0)
     const cosc = sinLat0 * sinL + cosLat0 * cosL * cd;
+
     if (cosc <= 0.02) {
       seg = null;
       continue;
     } // back / limb → break
+
     const sd = AUR_SIN[i] * cosLon0 - AUR_COS[i] * sinLon0; // sin(lng − lon0)
     const px = CX + R * (cosL * sd);
     const py = CY - R * (cosLat0 * sinL - sinLat0 * cosL * cd);
+
     if (!seg) {
       seg = [];
       segs.push(seg);
     }
     seg.push(px, py);
   }
+
   return segs;
 }

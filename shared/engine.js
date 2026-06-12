@@ -56,16 +56,27 @@ const SURGE_LEN_MS = 6500; // how long a surge lasts
 
 export class BaseEngine {
   #handlers = {};
+
   #byName = {};
+
   #hooks = [];
+
   #drag = { active: false, x: 0, y: 0, vx: 0, t: 0 };
+
   #fling = 0;
+
   #spawnAcc = 0;
+
   #last = 0;
+
   #ema = 16.7;
+
   #cooldown = 60;
+
   #introT0 = 0;
+
   #prevLam = null;
+
   #nextSurge = 0;
 
   constructor({ scene, sim, data }) {
@@ -116,8 +127,10 @@ export class BaseEngine {
   on(evt, fn) {
     (this.#handlers[evt] || (this.#handlers[evt] = [])).push(fn);
   }
+
   emit(evt, payload) {
     const h = this.#handlers[evt];
+
     if (h) for (const fn of h) fn(payload);
   }
 
@@ -126,17 +139,22 @@ export class BaseEngine {
     this.layers.push(layer);
     this.#byName[layer.name] = layer;
     this.layers.sort((a, b) => a.z - b.z);
+
     return layer;
   }
+
   layer(name) {
     return this.#byName[name];
   }
+
   build() {
     for (const l of this.layers) l.build && l.build(this);
   }
+
   resizeLayers() {
     for (const l of this.layers) l.resize && l.resize(this);
   }
+
   rebuildFor(key) {
     for (const l of this.layers) {
       if (l.build && l.rebuildOn && l.rebuildOn.includes(key)) l.build(this);
@@ -147,6 +165,7 @@ export class BaseEngine {
   onCount(fn) {
     this.#hooks.push(fn);
   }
+
   bump(id) {
     for (const fn of this.#hooks) fn(id);
   }
@@ -156,11 +175,15 @@ export class BaseEngine {
   // INTRO_MS). Returns 1 once the intro is over — zero cost in steady state.
   introPhase(a, b) {
     if (this.intro >= 1) return 1;
+
     const p = (this.intro - a) / (b - a);
+
     if (p <= 0) return 0;
     if (p >= 1) return 1;
+
     return p * p * (3 - 2 * p); // smoothstep
   }
+
   replayIntro() {
     this.#introT0 = performance.now();
   }
@@ -168,6 +191,7 @@ export class BaseEngine {
   // ---- viewport ------------------------------------------------------
   resize() {
     const rect = this.viewportRect();
+
     this.W = rect.width;
     this.H = rect.height;
     this.CX = this.W * 0.5;
@@ -176,6 +200,7 @@ export class BaseEngine {
     this.dpr = Math.min(2, window.devicePixelRatio || 1) * this.quality;
     this.resizeBackend();
     this.proj.setViewport(this.R, this.CX, this.CY);
+
     this.resizeLayers();
   }
 
@@ -194,8 +219,10 @@ export class BaseEngine {
     this.#nextSurge = performance.now() + SURGE_FIRST_MS;
     this.proj.setRotation(this.rotation[0], this.rotation[1], this.rotation[2]);
     this.proj.updateSun(performance.now());
+
     requestAnimationFrame((t) => {
       this.#last = t;
+
       this.#frame(t);
     });
   }
@@ -203,6 +230,7 @@ export class BaseEngine {
   #frame(now) {
     const raw = now - this.#last;
     const dt = Math.min(0.05, raw / 1000);
+
     this.#last = now;
     this.now = now;
     this.dt = dt;
@@ -214,6 +242,7 @@ export class BaseEngine {
     this.intro = this.scene.intro === false ? 1 : Math.min(1, (now - this.#introT0) / INTRO_MS);
 
     const sim = this.sim;
+
     if (!this.#drag.active) {
       // fling inertia glides on top of auto-rotation (works even when paused)
       if (this.#fling) {
@@ -231,6 +260,7 @@ export class BaseEngine {
     const lk = this.look,
       ease = Math.min(1, dt * 2.5);
     const want = this.scene.parallax !== false && !this.#drag.active;
+
     lk.x += ((want ? lk.tx : 0) - lk.x) * ease;
     lk.y += ((want ? lk.ty : 0) - lk.y) * ease;
 
@@ -239,9 +269,12 @@ export class BaseEngine {
 
     if (!sim.paused && this.intro >= INTRO_BEAMS_AT) {
       const mult = this.surge ? 2.6 : 1;
+
       this.#spawnAcc += dt * sim.rate * mult;
+
       let guard = 0;
       const beams = this.#byName.beams;
+
       while (this.#spawnAcc >= 1 && guard < 12) {
         beams && beams.spawn(this);
         this.#spawnAcc -= 1;
@@ -252,12 +285,15 @@ export class BaseEngine {
     // displayed rotation = engine rotation + look offset (never written back)
     const lam = this.rotation[0] + lk.x;
     const phi = Math.max(-90, Math.min(90, this.rotation[1] + lk.y));
+
     this.proj.setRotation(lam, phi, this.rotation[2]);
     this.proj.updateSun(now);
 
     // unwrapped longitude for background parallax
     if (this.#prevLam === null) this.#prevLam = lam;
+
     let dr = lam - this.#prevLam;
+
     if (dr > 180) dr -= 360;
     else if (dr < -180) dr += 360;
     this.rotAcc += dr;
@@ -270,6 +306,7 @@ export class BaseEngine {
     this.renderFrame();
 
     if (this.fps) this.fps.tick(now);
+
     requestAnimationFrame((t) => this.#frame(t));
   }
 
@@ -278,16 +315,20 @@ export class BaseEngine {
     if (this.surge && now > this.surge.until) this.surge = null;
     if (this.surge || this.sim.paused || this.intro < 1) return;
     if (this.scene.surges === false || now < this.#nextSurge) return;
+
     // pick a city on the visible hemisphere
     const cities = this.data.CITIES;
+
     for (let k = 0; k < 10; k++) {
       const c = cities[(Math.random() * cities.length) | 0];
+
       if (this.proj.visible(c.lnglat)) {
         this.surge = { city: c, t0: now, until: now + SURGE_LEN_MS };
         this.emit('surge', { city: c });
         break;
       }
     }
+
     this.#nextSurge =
       now + SURGE_EVERY_MS[0] + Math.random() * (SURGE_EVERY_MS[1] - SURGE_EVERY_MS[0]);
   }
@@ -297,6 +338,7 @@ export class BaseEngine {
     if (rawMs <= 0 || rawMs > 250) return; // tab was hidden / first frame
     this.#ema += (Math.min(rawMs, 80) - this.#ema) * 0.05;
     if (--this.#cooldown > 0) return;
+
     if (this.#ema > EMA_SLOW_MS && this.quality > QUALITY_MIN) {
       this.quality = Math.max(QUALITY_MIN, this.quality - 0.15);
       this.#cooldown = COOLDOWN_FRAMES;
@@ -315,6 +357,7 @@ export class BaseEngine {
       this.look.tx = ((e.clientX / this.W) * 2 - 1) * LOOK_DEG;
       this.look.ty = -((e.clientY / this.H) * 2 - 1) * LOOK_DEG;
     });
+
     window.addEventListener('mouseleave', () => {
       this.look.tx = 0;
       this.look.ty = 0;
@@ -329,28 +372,37 @@ export class BaseEngine {
     const down = (e) => {
       d.active = true;
       this.#fling = 0;
+
       const p = pt(e);
+
       d.x = p.clientX;
       d.y = p.clientY;
       d.vx = 0;
       d.t = performance.now();
       c.classList.add('grabbing');
+
       e.preventDefault();
     };
+
     const move = (e) => {
       if (!d.active) return;
+
       const p = pt(e),
         k = 0.26;
       const ddeg = (p.clientX - d.x) * k;
+
       this.rotation[0] += ddeg;
       this.rotation[1] = Math.max(-90, Math.min(90, this.rotation[1] - (p.clientY - d.y) * k));
+
       const t = performance.now(),
         dts = Math.max(0.008, (t - d.t) / 1000);
+
       d.vx = d.vx * 0.75 + (ddeg / dts) * 0.25; // smoothed angular velocity (°/s)
       d.x = p.clientX;
       d.y = p.clientY;
       d.t = t;
     };
+
     const up = () => {
       if (!d.active) return;
       d.active = false;
@@ -358,11 +410,13 @@ export class BaseEngine {
       // recent movement → glide; stale velocity (held still) → no fling
       if (performance.now() - d.t < 90) this.#fling = Math.max(-200, Math.min(200, d.vx));
     };
+
     c.addEventListener('mousedown', down);
     window.addEventListener('mousemove', move);
     window.addEventListener('mouseup', up);
     c.addEventListener('touchstart', down, { passive: false });
     window.addEventListener('touchmove', move, { passive: false });
+
     window.addEventListener('touchend', up);
   }
 
@@ -370,12 +424,16 @@ export class BaseEngine {
   viewportRect() {
     throw new Error('viewportRect not implemented');
   }
+
   resizeBackend() {}
+
   dragTarget() {
     throw new Error('dragTarget not implemented');
   }
+
   renderFrame() {
     throw new Error('renderFrame not implemented');
   }
+
   applyScene() {}
 }
