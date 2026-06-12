@@ -1,11 +1,11 @@
-/* games.directory globe — SVG entry point
+/* Orbit — SVG entry point
  *
  * Modes:
  *   • clean (default)  — the production hero: globe + brand + live ticker, no controls.
  *   • demo (?demo)     — adds the FPS meter and the full control / "Scene & effects" panel.
  *
  * Scene source (all validated against the schema before use):
- *   • window.__GD_SCENE__   inline embed from the platform        (highest priority)
+ *   • window.__ORBIT_SCENE__   inline embed from the platform        (highest priority)
  *   • ?config=<url>         fetch the per-deployment config JSON
  *   • ?demo                 the demo's own localStorage
  *   • otherwise             schema defaults
@@ -33,7 +33,7 @@ const data = { HQ, ACTIVITY_TYPES, CITIES, landFeature: null };
 const scene = await resolveScene({
   demo,
   configUrl: params.get('config'),
-  inline: window.__GD_SCENE__,
+  inline: window.__ORBIT_SCENE__,
 });
 const engine = new Engine({ svg, scene, sim, data });
 registerDefaultLayers(engine);

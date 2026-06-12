@@ -1,4 +1,4 @@
-/* games.directory globe — UI wiring (shared by both renderers)
+/* Orbit — UI wiring (shared by both renderers)
  *
  * The panel, activity list and ticker are pure DOM and backend-agnostic: they
  * mutate the live `scene` / `sim` / activity-state objects the engine reads,

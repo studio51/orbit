@@ -1,4 +1,4 @@
-/* games.directory globe — simulation (shared by both renderers)
+/* Orbit — simulation (shared by both renderers)
  *
  * Renderer-agnostic decisions and physics, operating on plain numbers. The
  * renderers own the visual objects (canvas data / svg nodes) but defer *what

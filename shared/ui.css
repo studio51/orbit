@@ -1,4 +1,4 @@
-/* games.directory globe — shared chrome (backend-agnostic).
+/* Orbit — shared chrome (backend-agnostic).
  * Renderer-specific styling lives in canvas/canvas.css and svg/scene.css. */
 :root {
   --bg: #04050b;

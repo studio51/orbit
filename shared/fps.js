@@ -1,4 +1,4 @@
-/* games.directory globe — FPS meter overlay (shared)
+/* Orbit — FPS meter overlay (shared)
  *
  * Smoothed frames-per-second plus frame time, so the canvas and SVG builds can
  * be compared honestly. Call tick(now) once per rendered frame.

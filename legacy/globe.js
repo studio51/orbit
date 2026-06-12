@@ -1,4 +1,4 @@
-/* games.directory globe — engine
+/* Orbit — engine
  * Accurate rotating orthographic globe (D3 geo) with dotted land,
  * and great-circle "activity beams" that fire from real city
  * coordinates and converge on HQ. Rendered in SVG.
@@ -60,14 +60,14 @@
   };
   var scene = Object.assign({}, SCENE_DEFAULTS);
   try {
-    var saved = JSON.parse(localStorage.getItem('gd-globe-scene') || '{}');
+    var saved = JSON.parse(localStorage.getItem('orbit-scene') || '{}');
     Object.keys(saved).forEach(function (k) {
       if (k in scene) scene[k] = saved[k];
     });
   } catch (e) {}
   function saveScene() {
     try {
-      localStorage.setItem('gd-globe-scene', JSON.stringify(scene));
+      localStorage.setItem('orbit-scene', JSON.stringify(scene));
     } catch (e) {}
   }
   var DENSITY_STEP = { sparse: 3.8, med: 3.0, dense: 2.4 };
@@ -1410,7 +1410,7 @@
       else host.setAttribute('hidden', '');
       gear.setAttribute('aria-pressed', open ? 'true' : 'false');
       try {
-        localStorage.setItem('gd-globe-scene-open', open ? '1' : '0');
+        localStorage.setItem('orbit-scene-open', open ? '1' : '0');
       } catch (e) {}
     }
     gear.addEventListener('click', function () {
@@ -1418,7 +1418,7 @@
     });
     var wasOpen = false;
     try {
-      wasOpen = localStorage.getItem('gd-globe-scene-open') === '1';
+      wasOpen = localStorage.getItem('orbit-scene-open') === '1';
     } catch (e) {}
     if (wasOpen) setOpen(true);
   }

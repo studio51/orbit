@@ -1,4 +1,4 @@
-/* games.directory globe — SVG render layers
+/* Orbit — SVG render layers
  *
  * Every visual element is a self-contained layer object:
  *   { name, z, rebuildOn?, build(e), resize?(e), simulate?(e), draw(e) }

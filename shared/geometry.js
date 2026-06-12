@@ -1,4 +1,4 @@
-/* games.directory globe — geometry (shared by both renderers)
+/* Orbit — geometry (shared by both renderers)
  *
  * Pure functions that turn the projection + scene into coordinates. No DOM, no
  * canvas, no rendering — each renderer takes these points/arrays and paints them

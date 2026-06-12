@@ -1,12 +1,12 @@
-/* games.directory globe — data layer
+/* Orbit — data layer
  * HQ, activity types, and real-world city coordinates ([lng, lat]).
  * Coordinates are accurate; the projection places them precisely on the sphere.
  */
 
 window.GD = window.GD || {};
 
-// games.directory HQ — London, UK
-GD.HQ = { name: 'games.directory HQ', city: 'London', lnglat: [-0.1276, 51.5074] };
+// Orbit HQ — London, UK
+GD.HQ = { name: 'Orbit HQ', city: 'London', lnglat: [-0.1276, 51.5074] };
 
 // Activity types. `color` is the live, user-editable beam colour.
 GD.ACTIVITY_TYPES = [

@@ -1,4 +1,4 @@
-/* games.directory globe — Canvas2D cinematic layers
+/* Orbit — Canvas2D cinematic layers
  *
  * The wow extras: the Moon, the rare comet, constellations, the ocean sun
  * glint, the HQ heartbeat and the city-surge marker. Same layer contract as

@@ -1,4 +1,4 @@
-/* games.directory globe — Canvas2D engine
+/* Orbit — Canvas2D engine
  *
  * Thin subclass of BaseEngine (shared/engine.js): all the shared machinery lives
  * there; here we only wire the canvas-specific hooks. Each frame clears the

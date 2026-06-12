@@ -8,6 +8,18 @@ Orbit runs in two modes, served from a static file server (see
 - **Demo** — add `?demo` (`/canvas/?demo`): adds the FPS meter and the full
   control + **Scene & effects** panel for tuning. The chooser links here.
 
+The bare `/canvas/` or `/svg/` URL is the clean hero (globe only, no controls);
+the `?demo` links add live controls + FPS.
+
+## Running locally
+
+The world map is fetched at runtime, so Orbit needs to be served over HTTP (not
+opened as a `file://` path). Any static server works, e.g.:
+
+```
+python3 -m http.server 8000   # → http://localhost:8000
+```
+
 ## Controls
 
 Everything is user-tunable live via the **Scene & effects** panel (in demo mode),
@@ -25,7 +37,7 @@ cities, and activity types (label / colour / weight). Then embed the clean hero:
 ```html
 <!-- inline config the platform embeds before the globe loads -->
 <script>
-  window.__GD_SCENE__ = { aurora: { intensity: 0.6 } /* …schema fields… */ };
+  window.__ORBIT_SCENE__ = { aurora: { intensity: 0.6 } /* …schema fields… */ };
 </script>
 <iframe src="/canvas/" title="Activity globe"></iframe>
 ```
@@ -52,7 +64,7 @@ contract with the games.directory platform:
 
 At runtime the scene is resolved by `resolveScene()` in this precedence:
 
-1. **`window.__GD_SCENE__`** — an inline config object the platform embeds;
+1. **`window.__ORBIT_SCENE__`** — an inline config object the platform embeds;
 2. **`?config=<url>`** — fetched per-deployment config JSON (from your API);
 3. **`?demo`** — the demo panel's own `localStorage`;
 4. otherwise — schema defaults.
