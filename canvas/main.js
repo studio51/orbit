@@ -43,6 +43,7 @@ applyStarfield();
 // Live ticker is part of the hero spectacle — shown in both modes.
 const ticker = createTicker(document.getElementById("ticker"), VERBS);
 engine.on("beam", ({ type, city, color }) => ticker.push(type, city.name, color));
+engine.on("surge", ({ city }) => ticker.special(`${city.name} is lighting up right now`));
 
 // Controls + FPS meter are demo-only; the production hero stays clean.
 if (demo) {
@@ -60,6 +61,7 @@ if (demo) {
       if (structural) engine.rebuildFor(key);
       engine.applyScene();
       if (key === "starDrift" || key === "starTwinkle") applyStarfield();
+      if (key === "intro" && scene.intro) engine.replayIntro(); // toggle on → replay the arrival
     },
   });
 }
