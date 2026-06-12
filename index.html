@@ -1,152 +1,387 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>games.directory · Activity Globe — Canvas vs SVG</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<style>
-  :root{
-    --bg:#05060c; --ink:#eaf0ff; --muted:#8a93b2; --accent:#5ad1ff;
-    --line:rgba(140,160,210,.16); --panel:rgba(14,18,32,.7);
-    --sans:"Space Grotesk",system-ui,sans-serif; --mono:"JetBrains Mono",ui-monospace,monospace;
-  }
-  *{box-sizing:border-box}
-  html,body{margin:0;min-height:100%}
-  body{
-    background:
-      radial-gradient(1200px 800px at 70% -10%, rgba(40,70,130,.25), transparent 60%),
-      radial-gradient(900px 700px at 15% 110%, rgba(70,40,120,.2), transparent 55%),
-      var(--bg);
-    color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;
-    min-height:100vh;display:flex;flex-direction:column}
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>games.directory · Activity Globe — Canvas vs SVG</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #05060c;
+        --ink: #eaf0ff;
+        --muted: #8a93b2;
+        --accent: #5ad1ff;
+        --line: rgba(140, 160, 210, 0.16);
+        --panel: rgba(14, 18, 32, 0.7);
+        --sans: 'Space Grotesk', system-ui, sans-serif;
+        --mono: 'JetBrains Mono', ui-monospace, monospace;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+      }
+      body {
+        background:
+          radial-gradient(1200px 800px at 70% -10%, rgba(40, 70, 130, 0.25), transparent 60%),
+          radial-gradient(900px 700px at 15% 110%, rgba(70, 40, 120, 0.2), transparent 55%),
+          var(--bg);
+        color: var(--ink);
+        font-family: var(--sans);
+        -webkit-font-smoothing: antialiased;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
 
-  /* ---- chooser (default view) ---- */
-  .wrap{max-width:920px;margin:0 auto;padding:8vh 24px 6vh;flex:1;width:100%}
-  .brand{display:flex;align-items:center;gap:12px;margin-bottom:30px}
-  .glyph{width:34px;height:34px;border-radius:9px;background:linear-gradient(140deg,#5ad1ff,#7c6bff);
-    display:grid;place-items:center;color:#04060e;font-weight:700;font-size:19px;
-    box-shadow:0 6px 24px rgba(90,140,255,.35)}
-  .brand .name{font-weight:600;font-size:20px}.brand .name b{color:var(--accent);font-weight:600}
-  h1{font-size:clamp(28px,5vw,46px);line-height:1.08;letter-spacing:-.02em;margin:0 0 14px;font-weight:700}
-  h1 .grad{background:linear-gradient(120deg,#7fd7ff,#b58cff);-webkit-background-clip:text;background-clip:text;color:transparent}
-  .lede{font-size:16px;color:var(--muted);max-width:620px;line-height:1.6;margin:0 0 38px}
-  .cards{display:grid;grid-template-columns:1fr 1fr;gap:18px}
-  .card{display:block;text-decoration:none;color:inherit;background:var(--panel);
-    border:1px solid var(--line);border-radius:18px;padding:24px;transition:.18s;position:relative;overflow:hidden}
-  .card:hover{border-color:var(--accent);transform:translateY(-3px);box-shadow:0 24px 60px rgba(0,0,0,.45)}
-  .card .tag{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
-  .card h2{font-size:21px;margin:10px 0 8px;font-weight:600}
-  .card p{font-size:13.5px;color:var(--muted);line-height:1.55;margin:0 0 14px}
-  .card .meta{font-family:var(--mono);font-size:11.5px;color:var(--ink);display:flex;gap:8px;flex-wrap:wrap}
-  .card .meta span{background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:7px;padding:3px 8px}
-  .card.recommend::after{content:"recommended";position:absolute;top:16px;right:-30px;transform:rotate(45deg);
-    background:linear-gradient(120deg,#5ad1ff,#7c6bff);color:#04060e;font-family:var(--mono);font-size:9.5px;
-    letter-spacing:.1em;text-transform:uppercase;padding:4px 36px;font-weight:600}
-  .actions{margin-top:26px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
-  .btn{appearance:none;cursor:pointer;font-family:var(--sans);font-size:14px;font-weight:500;
-    border-radius:11px;padding:12px 20px;border:1px solid var(--line);background:rgba(255,255,255,.04);
-    color:var(--ink);transition:.15s;text-decoration:none;display:inline-flex;align-items:center;gap:8px}
-  .btn:hover{border-color:var(--accent);background:rgba(90,209,255,.08)}
-  .btn.primary{background:linear-gradient(120deg,#5ad1ff,#7c6bff);color:#04060e;border:0;font-weight:600}
-  .foot{font-family:var(--mono);font-size:11.5px;color:var(--muted);margin-top:34px;line-height:1.7}
-  .foot code{background:rgba(255,255,255,.06);padding:2px 6px;border-radius:5px;color:var(--ink)}
+      /* ---- chooser (default view) ---- */
+      .wrap {
+        max-width: 920px;
+        margin: 0 auto;
+        padding: 8vh 24px 6vh;
+        flex: 1;
+        width: 100%;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 30px;
+      }
+      .glyph {
+        width: 34px;
+        height: 34px;
+        border-radius: 9px;
+        background: linear-gradient(140deg, #5ad1ff, #7c6bff);
+        display: grid;
+        place-items: center;
+        color: #04060e;
+        font-weight: 700;
+        font-size: 19px;
+        box-shadow: 0 6px 24px rgba(90, 140, 255, 0.35);
+      }
+      .brand .name {
+        font-weight: 600;
+        font-size: 20px;
+      }
+      .brand .name b {
+        color: var(--accent);
+        font-weight: 600;
+      }
+      h1 {
+        font-size: clamp(28px, 5vw, 46px);
+        line-height: 1.08;
+        letter-spacing: -0.02em;
+        margin: 0 0 14px;
+        font-weight: 700;
+      }
+      h1 .grad {
+        background: linear-gradient(120deg, #7fd7ff, #b58cff);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+      .lede {
+        font-size: 16px;
+        color: var(--muted);
+        max-width: 620px;
+        line-height: 1.6;
+        margin: 0 0 38px;
+      }
+      .cards {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 18px;
+      }
+      .card {
+        display: block;
+        text-decoration: none;
+        color: inherit;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 24px;
+        transition: 0.18s;
+        position: relative;
+        overflow: hidden;
+      }
+      .card:hover {
+        border-color: var(--accent);
+        transform: translateY(-3px);
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+      }
+      .card .tag {
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--accent);
+      }
+      .card h2 {
+        font-size: 21px;
+        margin: 10px 0 8px;
+        font-weight: 600;
+      }
+      .card p {
+        font-size: 13.5px;
+        color: var(--muted);
+        line-height: 1.55;
+        margin: 0 0 14px;
+      }
+      .card .meta {
+        font-family: var(--mono);
+        font-size: 11.5px;
+        color: var(--ink);
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .card .meta span {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        padding: 3px 8px;
+      }
+      .card.recommend::after {
+        content: 'recommended';
+        position: absolute;
+        top: 16px;
+        right: -30px;
+        transform: rotate(45deg);
+        background: linear-gradient(120deg, #5ad1ff, #7c6bff);
+        color: #04060e;
+        font-family: var(--mono);
+        font-size: 9.5px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        padding: 4px 36px;
+        font-weight: 600;
+      }
+      .actions {
+        margin-top: 26px;
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .btn {
+        appearance: none;
+        cursor: pointer;
+        font-family: var(--sans);
+        font-size: 14px;
+        font-weight: 500;
+        border-radius: 11px;
+        padding: 12px 20px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.04);
+        color: var(--ink);
+        transition: 0.15s;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .btn:hover {
+        border-color: var(--accent);
+        background: rgba(90, 209, 255, 0.08);
+      }
+      .btn.primary {
+        background: linear-gradient(120deg, #5ad1ff, #7c6bff);
+        color: #04060e;
+        border: 0;
+        font-weight: 600;
+      }
+      .foot {
+        font-family: var(--mono);
+        font-size: 11.5px;
+        color: var(--muted);
+        margin-top: 34px;
+        line-height: 1.7;
+      }
+      .foot code {
+        background: rgba(255, 255, 255, 0.06);
+        padding: 2px 6px;
+        border-radius: 5px;
+        color: var(--ink);
+      }
 
-  /* ---- side-by-side view ---- */
-  body.compare .wrap{display:none}
-  .stage{display:none;flex-direction:column;height:100vh}
-  body.compare .stage{display:flex}
-  .bar{display:flex;align-items:center;gap:14px;padding:10px 16px;border-bottom:1px solid var(--line);
-    background:rgba(5,6,12,.7);backdrop-filter:blur(10px)}
-  .bar .name{font-weight:600;font-size:14px}.bar .name b{color:var(--accent)}
-  .bar .spacer{flex:1}
-  .frames{flex:1;display:grid;grid-template-columns:1fr 1fr;min-height:0}
-  .frames .col{position:relative;min-width:0;border-right:1px solid var(--line)}
-  .frames .col:last-child{border-right:0}
-  .frames .col .label{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:2;
-    font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;
-    color:var(--accent);background:rgba(5,6,12,.6);border:1px solid var(--line);border-radius:8px;
-    padding:5px 12px;pointer-events:none}
-  .frames iframe{width:100%;height:100%;border:0;display:block;background:var(--bg)}
-  @media (max-width:760px){
-    .cards{grid-template-columns:1fr}
-    .frames{grid-template-columns:1fr;grid-template-rows:1fr 1fr}
-    .frames .col{border-right:0;border-bottom:1px solid var(--line)}
-  }
-</style>
-</head>
-<body>
-  <!-- chooser -->
-  <main class="wrap">
-    <div class="brand">
-      <div class="glyph">g</div>
-      <div class="name"><b>games</b>.directory · Activity Globe</div>
-    </div>
-    <h1>One globe, <span class="grad">two render engines.</span></h1>
-    <p class="lede">
-      A real-time 3D activity globe, built twice over a shared core so the two rendering
-      strategies can be compared head-to-head. Same scene, same controls, same data —
-      only the pixels are pushed differently. Each view shows a live FPS meter.
-    </p>
+      /* ---- side-by-side view ---- */
+      body.compare .wrap {
+        display: none;
+      }
+      .stage {
+        display: none;
+        flex-direction: column;
+        height: 100vh;
+      }
+      body.compare .stage {
+        display: flex;
+      }
+      .bar {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 10px 16px;
+        border-bottom: 1px solid var(--line);
+        background: rgba(5, 6, 12, 0.7);
+        backdrop-filter: blur(10px);
+      }
+      .bar .name {
+        font-weight: 600;
+        font-size: 14px;
+      }
+      .bar .name b {
+        color: var(--accent);
+      }
+      .bar .spacer {
+        flex: 1;
+      }
+      .frames {
+        flex: 1;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        min-height: 0;
+      }
+      .frames .col {
+        position: relative;
+        min-width: 0;
+        border-right: 1px solid var(--line);
+      }
+      .frames .col:last-child {
+        border-right: 0;
+      }
+      .frames .col .label {
+        position: absolute;
+        top: 10px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 2;
+        font-family: var(--mono);
+        font-size: 10.5px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--accent);
+        background: rgba(5, 6, 12, 0.6);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 5px 12px;
+        pointer-events: none;
+      }
+      .frames iframe {
+        width: 100%;
+        height: 100%;
+        border: 0;
+        display: block;
+        background: var(--bg);
+      }
+      @media (max-width: 760px) {
+        .cards {
+          grid-template-columns: 1fr;
+        }
+        .frames {
+          grid-template-columns: 1fr;
+          grid-template-rows: 1fr 1fr;
+        }
+        .frames .col {
+          border-right: 0;
+          border-bottom: 1px solid var(--line);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- chooser -->
+    <main class="wrap">
+      <div class="brand">
+        <div class="glyph">g</div>
+        <div class="name"><b>games</b>.directory · Activity Globe</div>
+      </div>
+      <h1>One globe, <span class="grad">two render engines.</span></h1>
+      <p class="lede">
+        A real-time 3D activity globe, built twice over a shared core so the two rendering
+        strategies can be compared head-to-head. Same scene, same controls, same data — only the
+        pixels are pushed differently. Each view shows a live FPS meter.
+      </p>
 
-    <div class="cards">
-      <a class="card recommend" href="canvas/index.html?demo">
-        <div class="tag">Renderer A</div>
-        <h2>Canvas 2D</h2>
-        <p>Immediate-mode drawing to a single canvas. The whole frame is cleared and
-           redrawn each tick — no persistent nodes, no per-frame DOM work. Built for FPS.</p>
-        <div class="meta"><span>high fps</span><span>additive glows</span><span>DPR-aware</span></div>
-      </a>
-      <a class="card" href="svg/index.html?demo">
-        <div class="tag">Renderer B</div>
-        <h2>SVG</h2>
-        <p>Retained-mode: persistent SVG nodes whose attributes are updated each frame.
-           The original approach — crisp, resolution-independent, identical look.</p>
-        <div class="meta"><span>vector-crisp</span><span>blend-mode glows</span><span>retained DOM</span></div>
-      </a>
-    </div>
+      <div class="cards">
+        <a class="card recommend" href="canvas/index.html?demo">
+          <div class="tag">Renderer A</div>
+          <h2>Canvas 2D</h2>
+          <p>
+            Immediate-mode drawing to a single canvas. The whole frame is cleared and redrawn each
+            tick — no persistent nodes, no per-frame DOM work. Built for FPS.
+          </p>
+          <div class="meta">
+            <span>high fps</span><span>additive glows</span><span>DPR-aware</span>
+          </div>
+        </a>
+        <a class="card" href="svg/index.html?demo">
+          <div class="tag">Renderer B</div>
+          <h2>SVG</h2>
+          <p>
+            Retained-mode: persistent SVG nodes whose attributes are updated each frame. The
+            original approach — crisp, resolution-independent, identical look.
+          </p>
+          <div class="meta">
+            <span>vector-crisp</span><span>blend-mode glows</span><span>retained DOM</span>
+          </div>
+        </a>
+      </div>
 
-    <div class="actions">
-      <button class="btn primary" id="compare">◧ Compare side-by-side</button>
-      <a class="btn" href="COMPARISON.md">Read the write-up</a>
-    </div>
+      <div class="actions">
+        <button class="btn primary" id="compare">◧ Compare side-by-side</button>
+        <a class="btn" href="COMPARISON.md">Read the write-up</a>
+      </div>
 
-    <p class="foot">
-      Needs a static server (the world map is fetched at runtime):
-      <code>python3 -m http.server 8000</code> → <code>http://localhost:8000</code><br>
-      The links above open <b>demo mode</b> (<code>?demo</code>) with live controls + FPS. The bare
-      <code>canvas/</code> or <code>svg/</code> URL is the <b>clean hero</b> — globe only, no controls.<br>
-      Customise HQ / cities / activity types in <code>shared/data.js</code>; scene settings come from the
-      platform (<code>?config=&lt;url&gt;</code> or <code>window.__GD_SCENE__</code>), bounded by <code>shared/scene-schema.js</code>.
-    </p>
-  </main>
+      <p class="foot">
+        Needs a static server (the world map is fetched at runtime):
+        <code>python3 -m http.server 8000</code> → <code>http://localhost:8000</code><br />
+        The links above open <b>demo mode</b> (<code>?demo</code>) with live controls + FPS. The
+        bare <code>canvas/</code> or <code>svg/</code> URL is the <b>clean hero</b> — globe only, no
+        controls.<br />
+        Customise HQ / cities / activity types in <code>shared/data.js</code>; scene settings come
+        from the platform (<code>?config=&lt;url&gt;</code> or <code>window.__GD_SCENE__</code>),
+        bounded by <code>shared/scene-schema.js</code>.
+      </p>
+    </main>
 
-  <!-- side-by-side -->
-  <section class="stage">
-    <div class="bar">
-      <span class="name"><b>games</b>.directory · side-by-side</span>
-      <span class="spacer"></span>
-      <a class="btn" href="index.html">← Back to chooser</a>
-    </div>
-    <div class="frames">
-      <div class="col"><span class="label">Canvas 2D</span><iframe id="f-canvas" title="Canvas renderer"></iframe></div>
-      <div class="col"><span class="label">SVG</span><iframe id="f-svg" title="SVG renderer"></iframe></div>
-    </div>
-  </section>
+    <!-- side-by-side -->
+    <section class="stage">
+      <div class="bar">
+        <span class="name"><b>games</b>.directory · side-by-side</span>
+        <span class="spacer"></span>
+        <a class="btn" href="index.html">← Back to chooser</a>
+      </div>
+      <div class="frames">
+        <div class="col">
+          <span class="label">Canvas 2D</span
+          ><iframe id="f-canvas" title="Canvas renderer"></iframe>
+        </div>
+        <div class="col">
+          <span class="label">SVG</span><iframe id="f-svg" title="SVG renderer"></iframe>
+        </div>
+      </div>
+    </section>
 
-  <script>
-    // Lazily load the iframes only when compare mode is entered (keeps the
-    // chooser cheap and avoids two globes fetching the map up front).
-    const enter = () => {
-      document.body.classList.add("compare");
-      document.getElementById("f-canvas").src = "canvas/index.html?demo";
-      document.getElementById("f-svg").src = "svg/index.html?demo";
-      location.hash = "compare";
-    };
-    document.getElementById("compare").addEventListener("click", enter);
-    if (location.hash === "#compare") enter();
-  </script>
-</body>
+    <script>
+      // Lazily load the iframes only when compare mode is entered (keeps the
+      // chooser cheap and avoids two globes fetching the map up front).
+      const enter = () => {
+        document.body.classList.add('compare');
+        document.getElementById('f-canvas').src = 'canvas/index.html?demo';
+        document.getElementById('f-svg').src = 'svg/index.html?demo';
+        location.hash = 'compare';
+      };
+      document.getElementById('compare').addEventListener('click', enter);
+      if (location.hash === '#compare') enter();
+    </script>
+  </body>
 </html>

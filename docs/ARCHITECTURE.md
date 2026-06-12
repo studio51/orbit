@@ -38,7 +38,7 @@ over a shared core, so the two strategies can be compared head-to-head:
 - **Canvas** is the recommended one: the highest, most stable frame rate.
 - **SVG** keeps the original vector-crisp look.
 
-The two renderers share *everything* except the actual painting. Geometry,
+The two renderers share _everything_ except the actual painting. Geometry,
 simulation, the engine, data, config and UI all live in `shared/`, so there's no
 duplicated logic. Each renderer's `engine.js` (~30–80 lines) and `layers.js` are
 **rendering only** — all behaviour comes from `shared/`.

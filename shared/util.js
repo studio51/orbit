@@ -13,7 +13,7 @@ export function easeInOutCubic(t) {
 
 // Parse "#rgb" / "#rrggbb" into [r, g, b] (0–255).
 export function hexToRgb(hex) {
-  let c = (hex || "#ffffff").replace("#", "");
+  let c = (hex || '#ffffff').replace('#', '');
   if (c.length === 3) c = c[0] + c[0] + c[1] + c[1] + c[2] + c[2];
   return [parseInt(c.slice(0, 2), 16), parseInt(c.slice(2, 4), 16), parseInt(c.slice(4, 6), 16)];
 }
@@ -36,6 +36,9 @@ export function weightedPick(items, weightOf = (t) => t.weight || 1) {
   let total = 0;
   for (const it of items) total += weightOf(it);
   let r = Math.random() * total;
-  for (const it of items) { r -= weightOf(it); if (r <= 0) return it; }
+  for (const it of items) {
+    r -= weightOf(it);
+    if (r <= 0) return it;
+  }
   return items[items.length - 1];
 }

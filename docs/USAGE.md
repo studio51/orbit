@@ -25,7 +25,7 @@ cities, and activity types (label / colour / weight). Then embed the clean hero:
 ```html
 <!-- inline config the platform embeds before the globe loads -->
 <script>
-  window.__GD_SCENE__ = { aurora: { intensity: 0.6 }, /* …schema fields… */ };
+  window.__GD_SCENE__ = { aurora: { intensity: 0.6 } /* …schema fields… */ };
 </script>
 <iframe src="/canvas/" title="Activity globe"></iframe>
 ```
