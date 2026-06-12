@@ -1,4 +1,13 @@
 /* canvas renderer — element-specific styling */
-#globe-canvas{position:absolute;inset:0;width:100%;height:100%;display:block;
-  cursor:grab;touch-action:none}
-#globe-canvas.grabbing{cursor:grabbing}
+#globe-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: grab;
+  touch-action: none;
+}
+#globe-canvas.grabbing {
+  cursor: grabbing;
+}
