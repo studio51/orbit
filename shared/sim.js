@@ -7,17 +7,22 @@
 import { weightedPick, tint } from "./util.js";
 
 // ---- beams -------------------------------------------------------------
-export const BEAM = { DRAW_MS: 1500, HOLD_MS: 700, FADE_MS: 950 };
+// Calm-and-majestic pacing: a slow, graceful draw with a long dissolve.
+export const BEAM = { DRAW_MS: 1800, HOLD_MS: 700, FADE_MS: 1100 };
 BEAM.LIFE_MS = BEAM.DRAW_MS + BEAM.HOLD_MS + BEAM.FADE_MS;
 
 // Choose the next beam's activity type (weighted) + a visible source city.
+// During a city surge, ~70% of beams originate from the surging city.
 export function pickBeam(e) {
   if (!e.proj.visible(e.data.HQ.lnglat)) return null; // can't land if HQ faces away
   const enabled = e.data.ACTIVITY_TYPES.filter((t) => e.state.types[t.id].enabled);
   if (!enabled.length) return null;
   const type = weightedPick(enabled, (t) => e.state.types[t.id].weight || 1);
   let city = null;
-  for (let k = 0; k < 8; k++) {
+  if (e.surge && e.surge.until > e.now && Math.random() < 0.7 && e.proj.visible(e.surge.city.lnglat)) {
+    city = e.surge.city;
+  }
+  for (let k = 0; !city && k < 8; k++) {
     const c = e.data.CITIES[(Math.random() * e.data.CITIES.length) | 0];
     if (e.proj.visible(c.lnglat)) { city = c; break; }
   }
@@ -35,11 +40,11 @@ export function spawnMeteorParams(W, H) {
   const x = fromRight ? W + 40 : Math.random() * W * 0.9;
   const y = fromRight ? Math.random() * H * 0.6 : -40;
   const ang = (Math.random() * 0.5 + 0.62) * Math.PI; // ~112°–203°: down & left
-  const speed = (W + H) * (0.34 + Math.random() * 0.30);
+  const speed = (W + H) * (0.26 + Math.random() * 0.22);
   return {
     x, y, vx: Math.cos(ang) * speed, vy: Math.abs(Math.sin(ang)) * speed,
     len: 90 + Math.random() * 170, w: 1.3 + Math.random() * 1.1, hr: 1.4 + Math.random() * 1.2,
-    t: 0, ttl: 0.9 + Math.random() * 0.7,
+    t: 0, ttl: 1.1 + Math.random() * 0.8,
   };
 }
 // Advance a meteor; returns false once it should be removed.

@@ -16,8 +16,8 @@ export const SCENE_DEFAULTS = sceneDefaults();
 // Live activity simulation defaults (driven by the demo's base control panel).
 export const SIM_DEFAULTS = {
   paused: false,
-  rotSpeed: 6,            // degrees / second (auto-rotate)
-  rate: 3.0,              // activities per second
+  rotSpeed: 4,            // degrees / second (auto-rotate) — calm and majestic
+  rate: 2.4,              // activities per second
   fireworks: true,        // celebratory burst on the trigger event
   fwTrigger: "completed", // which activity sets off fireworks
 };
