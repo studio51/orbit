@@ -37,6 +37,7 @@ export const SCENE_SCHEMA = {
     {
       id: "atmosphere", title: "Atmosphere", fields: [
         { key: "atmos", type: "range", label: "Atmospheric glow", default: 1, min: 0, max: 2, step: 0.1, display: "pctOfMax" },
+        { key: "sunGlare", type: "toggle", label: "Sun glare on limb", default: true },
       ],
     },
     {
@@ -45,6 +46,7 @@ export const SCENE_SCHEMA = {
         { key: "darkness",   type: "range",  label: "Night darkness", default: 0.55, min: 0, max: 0.9, step: 0.05, display: "pctOfMax" },
         { key: "cityLights", type: "toggle", label: "City lights", default: true },
         { key: "cityBright", type: "range",  label: "City brightness", default: 1, min: 0.3, max: 1.4, step: 0.05, display: "pctOfMax" },
+        { key: "sunGlint",   type: "toggle", label: "Ocean sun glint", default: true },
       ],
     },
     {
@@ -66,9 +68,22 @@ export const SCENE_SCHEMA = {
       ],
     },
     {
+      id: "cinema", title: "Cinema", fields: [
+        { key: "intro",     type: "toggle", label: "Cinematic arrival", default: true },
+        { key: "parallax",  type: "toggle", label: "Pointer parallax", default: true },
+        { key: "heartbeat", type: "toggle", label: "HQ heartbeat", default: true },
+        { key: "surges",    type: "toggle", label: "City surges", default: true },
+      ],
+    },
+    {
       id: "cosmos", title: "Cosmos", fields: [
         { key: "shootingStars", type: "toggle", label: "Shooting stars", default: true },
-        { key: "meteorRate",    type: "range",  label: "Meteor frequency", default: 0.5, min: 0, max: 1, step: 0.05, display: "pct" },
+        { key: "meteorRate",    type: "range",  label: "Meteor frequency", default: 0.4, min: 0, max: 1, step: 0.05, display: "pct" },
+        { key: "parallaxStars", type: "toggle", label: "Parallax stars", default: true },
+        { key: "nebula",        type: "toggle", label: "Nebula haze", default: true },
+        { key: "moon",          type: "toggle", label: "The Moon", default: true },
+        { key: "comet",         type: "toggle", label: "Rare comet", default: true },
+        { key: "constellations", type: "toggle", label: "Constellations", default: true },
         { key: "beamTrails",    type: "toggle", label: "Comet beam trails", default: true },
         { key: "atmosPulse",    type: "toggle", label: "Atmosphere pulse", default: true },
         { key: "starTwinkle",   type: "toggle", label: "Star twinkle", default: true },
