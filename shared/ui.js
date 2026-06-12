@@ -201,5 +201,15 @@ export function createTicker(el, verbs) {
       el.insertBefore(line, el.firstChild);
       while (el.children.length > 7) el.removeChild(el.lastChild);
     },
+    // surge callout — a highlighted line that bypasses the throttle
+    special(text) {
+      const line = document.createElement("div");
+      line.className = "tk-line tk-surge";
+      line.innerHTML =
+        `<span class="tk-dot" style="color:#5ad1ff;background:#5ad1ff"></span>` +
+        `<span class="tk-txt">${text}</span>`;
+      el.insertBefore(line, el.firstChild);
+      while (el.children.length > 7) el.removeChild(el.lastChild);
+    },
   };
 }
