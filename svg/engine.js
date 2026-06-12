@@ -1,4 +1,4 @@
-/* games.directory globe — SVG engine
+/* Orbit — SVG engine
  *
  * Thin subclass of BaseEngine (shared/engine.js). The SVG-specific hooks: nodes
  * persist between frames (no clear), so renderFrame() just lets every layer mutate

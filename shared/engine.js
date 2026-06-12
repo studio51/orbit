@@ -1,4 +1,4 @@
-/* games.directory globe — BaseEngine (shared by both renderers)
+/* Orbit — BaseEngine (shared by both renderers)
  *
  * All the backend-agnostic machinery lives here: the event bus, the ordered
  * layer registry, the clock, auto-rotation, the beam-spawn cadence, drag-to-spin

@@ -1,4 +1,4 @@
-/* games.directory globe — shared Canvas2D draw helpers
+/* Orbit — shared Canvas2D draw helpers
  *
  * Tiny rendering utilities used by both canvas/layers.js (the core layers)
  * and canvas/cinema.js (the cinematic extras). Rendering only — no geometry,

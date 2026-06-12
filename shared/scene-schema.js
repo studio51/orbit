@@ -1,4 +1,4 @@
-/* games.directory globe — scene SCHEMA (single source of truth)
+/* Orbit — scene SCHEMA (single source of truth)
  *
  * SCENE_SCHEMA is plain, JSON-serialisable data: the complete, bounded set of
  * tunable scene settings, grouped into sections. It is the contract between the

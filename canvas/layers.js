@@ -1,4 +1,4 @@
-/* games.directory globe — Canvas2D render layers
+/* Orbit — Canvas2D render layers
  *
  * Each layer is { name, z, rebuildOn?, build?, resize?, simulate?, visible?, draw }.
  * Layers draw in ascending z. To add an effect, write a factory and add it to

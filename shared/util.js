@@ -1,4 +1,4 @@
-/* games.directory globe — small pure helpers (shared by both renderers) */
+/* Orbit — small pure helpers (shared by both renderers) */
 
 export const DEG = Math.PI / 180;
 export const TAU = Math.PI * 2;

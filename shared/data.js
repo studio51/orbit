@@ -1,4 +1,4 @@
-/* games.directory globe — content layer (shared by both renderers)
+/* Orbit — content layer (shared by both renderers)
  *
  * This is the file to edit to make the globe your own: point HQ at your
  * location, list the cities activity should originate from, and define the
@@ -10,7 +10,7 @@
 
 // Where every beam converges.
 export const HQ = {
-  name: 'games.directory HQ',
+  name: 'Orbit HQ',
   city: 'London',
   lnglat: [-0.1276, 51.5074],
 };

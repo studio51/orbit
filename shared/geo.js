@@ -1,4 +1,4 @@
-/* games.directory globe — projection & sun (shared by both renderers)
+/* Orbit — projection & sun (shared by both renderers)
  *
  * Wraps d3.geoOrthographic but adds a hand-rolled fast forward-projection for
  * the thousands of land dots / spikes that must project every frame. d3's

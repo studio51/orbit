@@ -1,4 +1,4 @@
-/* games.directory globe — configuration
+/* Orbit — configuration
  *
  * The tunable *scene* settings and their bounds live in scene-schema.js (the
  * platform-facing contract). This module derives the runtime defaults from it,
@@ -33,8 +33,8 @@ export const AURORA_SCHEMES = {
 };
 
 export const STORAGE = {
-  scene: 'gd-globe-scene',
-  sceneOpen: 'gd-globe-scene-open',
+  scene: 'orbit-scene',
+  sceneOpen: 'orbit-scene-open',
 };
 
 // ---- demo-mode persistence (localStorage) ------------------------------

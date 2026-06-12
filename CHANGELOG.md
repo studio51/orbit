@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Adaptive quality in `BaseEngine`: an EMA of frame time nudges a dpr multiplier (down to 0.55) with cooldown hysteresis so weak GPUs get a softer image instead of dropped frames.
 - Richer visuals: deeper offset-lit ocean, wider atmospheric rim with a crisp shell line, 4-layer beams, twin impact rings, 3-pass aurora, warmer city lights.
 - Calmer defaults and pacing: rotation 4°/s, activity 2.4/s, meteor frequency 40%, slower/longer-lived meteors and beams.
+- Renamed the widget's own branding from "games.directory" to **Orbit** across UI titles, logos and file headers. The embed API global is now `window.__ORBIT_SCENE__` (was `__GD_SCENE__`) and the persisted panel keys are `orbit-scene` / `orbit-scene-open` (was `gd-globe-*`) — a breaking change for existing embeds and saved settings.
+- Moved the local-server / usage note off the root chooser page into [`docs/USAGE.md`](docs/USAGE.md).
 
 ### Fixed
 
