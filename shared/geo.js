@@ -14,7 +14,7 @@
  *
  * Depends on the global `d3` (geo module).
  */
-import { DEG } from "./util.js";
+import { DEG } from './util.js';
 
 export class Projection {
   #lastSun = -1e9;
@@ -24,11 +24,15 @@ export class Projection {
 
   constructor() {
     this.d3proj = d3.geoOrthographic().clipAngle(90).precision(0.4);
-    this.rotation = [-10, -25, 0];                                      // [lambda, phi, gamma]; start near Europe/Atlantic
-    this.antisolar = [180, 0];                                          // night-hemisphere centre; moved by updateSun()
+    this.rotation = [-10, -25, 0]; // [lambda, phi, gamma]; start near Europe/Atlantic
+    this.antisolar = [180, 0]; // night-hemisphere centre; moved by updateSun()
 
-    this.R = 0; this.cx = 0; this.cy = 0;
-    this.lon0 = 0; this.sinLat0 = 0; this.cosLat0 = 1;
+    this.R = 0;
+    this.cx = 0;
+    this.cy = 0;
+    this.lon0 = 0;
+    this.sinLat0 = 0;
+    this.cosLat0 = 1;
 
     this.sun = { lon: 0, sinLat: 0, cosLat: 1, sinLon: 0, cosLon: 1 };
 
@@ -36,7 +40,9 @@ export class Projection {
   }
 
   setViewport(R, cx, cy) {
-    this.R = R; this.cx = cx; this.cy = cy;
+    this.R = R;
+    this.cx = cx;
+    this.cy = cy;
     this.d3proj.scale(R).translate([cx, cy]);
   }
 
@@ -86,7 +92,8 @@ export class Projection {
   // subsolar point is on the far hemisphere, where forward() returns null).
   sunDir() {
     const dlon = this.sun.lon - this.lon0;
-    const cd = Math.cos(dlon), sd = Math.sin(dlon);
+    const cd = Math.cos(dlon),
+      sd = Math.sin(dlon);
     return {
       x: this.sun.cosLat * sd,
       y: this.cosLat0 * this.sun.sinLat - this.sinLat0 * this.sun.cosLat * cd,
@@ -115,7 +122,7 @@ export class Projection {
     this.sun.cosLat = Math.cos(declDeg * DEG);
 
     this.antisolar = [lonDeg + 180, -declDeg];
-    this.#nightShape = null;   // rebuild lazily with the new centre
+    this.#nightShape = null; // rebuild lazily with the new centre
     this.#coreShape = null;
   }
 }

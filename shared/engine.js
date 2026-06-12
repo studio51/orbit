@@ -37,22 +37,22 @@
  * Layer contract:
  *   { name, z, rebuildOn?, build?(e), resize?(e), simulate?(e), visible?(e), draw(e) }
  */
-import { Projection } from "./geo.js";
-import { SCENE_DEFAULTS } from "./config.js";
-import { ACTIVITY_TYPES } from "./data.js";
+import { Projection } from './geo.js';
+import { SCENE_DEFAULTS } from './config.js';
+import { ACTIVITY_TYPES } from './data.js';
 
-const QUALITY_MIN = 0.55;     // never drop below ~half-res backing store
-const EMA_SLOW_MS = 21;       // sustained frames slower than this → step down
-const EMA_FAST_MS = 14.5;     // sustained frames faster than this → step up
-const COOLDOWN_FRAMES = 150;  // min frames between quality changes (~2.5s)
+const QUALITY_MIN = 0.55; // never drop below ~half-res backing store
+const EMA_SLOW_MS = 21; // sustained frames slower than this → step down
+const EMA_FAST_MS = 14.5; // sustained frames faster than this → step up
+const COOLDOWN_FRAMES = 150; // min frames between quality changes (~2.5s)
 
-const INTRO_MS = 3200;        // cinematic arrival duration
-const INTRO_BEAMS_AT = 0.85;  // beams hold until the scene has mostly bloomed
+const INTRO_MS = 3200; // cinematic arrival duration
+const INTRO_BEAMS_AT = 0.85; // beams hold until the scene has mostly bloomed
 
-const LOOK_DEG = 3.2;         // max pointer-parallax lean, degrees
+const LOOK_DEG = 3.2; // max pointer-parallax lean, degrees
 const SURGE_FIRST_MS = 35000; // first city surge after load
 const SURGE_EVERY_MS = [50000, 90000]; // min..max between surges
-const SURGE_LEN_MS = 6500;    // how long a surge lasts
+const SURGE_LEN_MS = 6500; // how long a surge lasts
 
 export class BaseEngine {
   #handlers = {};
@@ -83,12 +83,20 @@ export class BaseEngine {
     this.rotation = this.proj.rotation.slice(); // engine-owned; proj gets rotation+look each frame
 
     // viewport (CSS px)
-    this.W = 0; this.H = 0; this.CX = 0; this.CY = 0; this.R = 0; this.dpr = 1;
+    this.W = 0;
+    this.H = 0;
+    this.CX = 0;
+    this.CY = 0;
+    this.R = 0;
+    this.dpr = 1;
     this.quality = 1; // adaptive multiplier on dpr (see header note)
 
     // clock + per-frame shared values
-    this.now = 0; this.dt = 0; this.frameCount = 0;
-    this.hq = null; this.hqVisible = false;
+    this.now = 0;
+    this.dt = 0;
+    this.frameCount = 0;
+    this.hq = null;
+    this.hqVisible = false;
 
     // cinematic arrival progress (0→1; pinned at 1 when scene.intro is off)
     this.intro = 1;
@@ -105,8 +113,13 @@ export class BaseEngine {
   }
 
   // ---- events --------------------------------------------------------
-  on(evt, fn) { (this.#handlers[evt] || (this.#handlers[evt] = [])).push(fn); }
-  emit(evt, payload) { const h = this.#handlers[evt]; if (h) for (const fn of h) fn(payload); }
+  on(evt, fn) {
+    (this.#handlers[evt] || (this.#handlers[evt] = [])).push(fn);
+  }
+  emit(evt, payload) {
+    const h = this.#handlers[evt];
+    if (h) for (const fn of h) fn(payload);
+  }
 
   // ---- layers --------------------------------------------------------
   register(layer) {
@@ -115,9 +128,15 @@ export class BaseEngine {
     this.layers.sort((a, b) => a.z - b.z);
     return layer;
   }
-  layer(name) { return this.#byName[name]; }
-  build() { for (const l of this.layers) l.build && l.build(this); }
-  resizeLayers() { for (const l of this.layers) l.resize && l.resize(this); }
+  layer(name) {
+    return this.#byName[name];
+  }
+  build() {
+    for (const l of this.layers) l.build && l.build(this);
+  }
+  resizeLayers() {
+    for (const l of this.layers) l.resize && l.resize(this);
+  }
   rebuildFor(key) {
     for (const l of this.layers) {
       if (l.build && l.rebuildOn && l.rebuildOn.includes(key)) l.build(this);
@@ -125,8 +144,12 @@ export class BaseEngine {
   }
 
   // ---- per-activity counters ----------------------------------------
-  onCount(fn) { this.#hooks.push(fn); }
-  bump(id) { for (const fn of this.#hooks) fn(id); }
+  onCount(fn) {
+    this.#hooks.push(fn);
+  }
+  bump(id) {
+    for (const fn of this.#hooks) fn(id);
+  }
 
   // ---- cinematic arrival ----------------------------------------------
   // Eased progress through the sub-window [a, b] of the intro (fractions of
@@ -138,13 +161,17 @@ export class BaseEngine {
     if (p >= 1) return 1;
     return p * p * (3 - 2 * p); // smoothstep
   }
-  replayIntro() { this.#introT0 = performance.now(); }
+  replayIntro() {
+    this.#introT0 = performance.now();
+  }
 
   // ---- viewport ------------------------------------------------------
   resize() {
     const rect = this.viewportRect();
-    this.W = rect.width; this.H = rect.height;
-    this.CX = this.W * 0.5; this.CY = this.H * 0.5;
+    this.W = rect.width;
+    this.H = rect.height;
+    this.CX = this.W * 0.5;
+    this.CY = this.H * 0.5;
     this.R = Math.min(this.W, this.H) * 0.36;
     this.dpr = Math.min(2, window.devicePixelRatio || 1) * this.quality;
     this.resizeBackend();
@@ -154,30 +181,37 @@ export class BaseEngine {
 
   // ---- main loop -----------------------------------------------------
   start() {
-    this.build();          // create/look-up state & nodes first
-    this.resize();         // size the viewport, then position layers
-    this.applyScene();     // map scene → element styles (svg only)
-    window.addEventListener("resize", () => this.resize());
-    document.addEventListener("visibilitychange", () => { this.#last = performance.now(); });
+    this.build(); // create/look-up state & nodes first
+    this.resize(); // size the viewport, then position layers
+    this.applyScene(); // map scene → element styles (svg only)
+    window.addEventListener('resize', () => this.resize());
+    document.addEventListener('visibilitychange', () => {
+      this.#last = performance.now();
+    });
     this.#bindDrag();
     this.#bindPointer();
     this.#introT0 = performance.now();
     this.#nextSurge = performance.now() + SURGE_FIRST_MS;
     this.proj.setRotation(this.rotation[0], this.rotation[1], this.rotation[2]);
     this.proj.updateSun(performance.now());
-    requestAnimationFrame((t) => { this.#last = t; this.#frame(t); });
+    requestAnimationFrame((t) => {
+      this.#last = t;
+      this.#frame(t);
+    });
   }
 
   #frame(now) {
     const raw = now - this.#last;
     const dt = Math.min(0.05, raw / 1000);
-    this.#last = now; this.now = now; this.dt = dt; this.frameCount++;
+    this.#last = now;
+    this.now = now;
+    this.dt = dt;
+    this.frameCount++;
 
     this.#adaptQuality(raw);
 
     // cinematic arrival progress
-    this.intro = this.scene.intro === false ? 1
-      : Math.min(1, (now - this.#introT0) / INTRO_MS);
+    this.intro = this.scene.intro === false ? 1 : Math.min(1, (now - this.#introT0) / INTRO_MS);
 
     const sim = this.sim;
     if (!this.#drag.active) {
@@ -194,7 +228,8 @@ export class BaseEngine {
     }
 
     // pointer parallax eases toward its target (or back to rest)
-    const lk = this.look, ease = Math.min(1, dt * 2.5);
+    const lk = this.look,
+      ease = Math.min(1, dt * 2.5);
     const want = this.scene.parallax !== false && !this.#drag.active;
     lk.x += ((want ? lk.tx : 0) - lk.x) * ease;
     lk.y += ((want ? lk.ty : 0) - lk.y) * ease;
@@ -207,7 +242,11 @@ export class BaseEngine {
       this.#spawnAcc += dt * sim.rate * mult;
       let guard = 0;
       const beams = this.#byName.beams;
-      while (this.#spawnAcc >= 1 && guard < 12) { beams && beams.spawn(this); this.#spawnAcc -= 1; guard++; }
+      while (this.#spawnAcc >= 1 && guard < 12) {
+        beams && beams.spawn(this);
+        this.#spawnAcc -= 1;
+        guard++;
+      }
     } else this.#spawnAcc = 0;
 
     // displayed rotation = engine rotation + look offset (never written back)
@@ -219,8 +258,10 @@ export class BaseEngine {
     // unwrapped longitude for background parallax
     if (this.#prevLam === null) this.#prevLam = lam;
     let dr = lam - this.#prevLam;
-    if (dr > 180) dr -= 360; else if (dr < -180) dr += 360;
-    this.rotAcc += dr; this.#prevLam = lam;
+    if (dr > 180) dr -= 360;
+    else if (dr < -180) dr += 360;
+    this.rotAcc += dr;
+    this.#prevLam = lam;
 
     this.hq = this.proj.forward(this.data.HQ.lnglat);
     this.hqVisible = !!this.hq && this.proj.visible(this.data.HQ.lnglat);
@@ -243,16 +284,17 @@ export class BaseEngine {
       const c = cities[(Math.random() * cities.length) | 0];
       if (this.proj.visible(c.lnglat)) {
         this.surge = { city: c, t0: now, until: now + SURGE_LEN_MS };
-        this.emit("surge", { city: c });
+        this.emit('surge', { city: c });
         break;
       }
     }
-    this.#nextSurge = now + SURGE_EVERY_MS[0] + Math.random() * (SURGE_EVERY_MS[1] - SURGE_EVERY_MS[0]);
+    this.#nextSurge =
+      now + SURGE_EVERY_MS[0] + Math.random() * (SURGE_EVERY_MS[1] - SURGE_EVERY_MS[0]);
   }
 
   // EMA of raw frame time → nudge quality down/up with hysteresis + cooldown.
   #adaptQuality(rawMs) {
-    if (rawMs <= 0 || rawMs > 250) return;          // tab was hidden / first frame
+    if (rawMs <= 0 || rawMs > 250) return; // tab was hidden / first frame
     this.#ema += (Math.min(rawMs, 80) - this.#ema) * 0.05;
     if (--this.#cooldown > 0) return;
     if (this.#ema > EMA_SLOW_MS && this.quality > QUALITY_MIN) {
@@ -261,58 +303,79 @@ export class BaseEngine {
       this.resize();
     } else if (this.#ema < EMA_FAST_MS && this.quality < 1) {
       this.quality = Math.min(1, this.quality + 0.15);
-      this.#cooldown = COOLDOWN_FRAMES * 2;          // step up more cautiously
+      this.#cooldown = COOLDOWN_FRAMES * 2; // step up more cautiously
       this.resize();
     }
   }
 
   // ---- pointer parallax ------------------------------------------------
   #bindPointer() {
-    window.addEventListener("mousemove", (e) => {
+    window.addEventListener('mousemove', (e) => {
       if (this.#drag.active || !this.W) return;
       this.look.tx = ((e.clientX / this.W) * 2 - 1) * LOOK_DEG;
       this.look.ty = -((e.clientY / this.H) * 2 - 1) * LOOK_DEG;
     });
-    window.addEventListener("mouseleave", () => { this.look.tx = 0; this.look.ty = 0; });
+    window.addEventListener('mouseleave', () => {
+      this.look.tx = 0;
+      this.look.ty = 0;
+    });
   }
 
   // ---- drag to spin (with fling) --------------------------------------
   #bindDrag() {
-    const c = this.dragTarget(), d = this.#drag;
+    const c = this.dragTarget(),
+      d = this.#drag;
     const pt = (e) => (e.touches ? e.touches[0] : e);
     const down = (e) => {
-      d.active = true; this.#fling = 0;
-      const p = pt(e); d.x = p.clientX; d.y = p.clientY; d.vx = 0; d.t = performance.now();
-      c.classList.add("grabbing"); e.preventDefault();
+      d.active = true;
+      this.#fling = 0;
+      const p = pt(e);
+      d.x = p.clientX;
+      d.y = p.clientY;
+      d.vx = 0;
+      d.t = performance.now();
+      c.classList.add('grabbing');
+      e.preventDefault();
     };
     const move = (e) => {
       if (!d.active) return;
-      const p = pt(e), k = 0.26;
+      const p = pt(e),
+        k = 0.26;
       const ddeg = (p.clientX - d.x) * k;
       this.rotation[0] += ddeg;
       this.rotation[1] = Math.max(-90, Math.min(90, this.rotation[1] - (p.clientY - d.y) * k));
-      const t = performance.now(), dts = Math.max(0.008, (t - d.t) / 1000);
-      d.vx = d.vx * 0.75 + (ddeg / dts) * 0.25;      // smoothed angular velocity (°/s)
-      d.x = p.clientX; d.y = p.clientY; d.t = t;
+      const t = performance.now(),
+        dts = Math.max(0.008, (t - d.t) / 1000);
+      d.vx = d.vx * 0.75 + (ddeg / dts) * 0.25; // smoothed angular velocity (°/s)
+      d.x = p.clientX;
+      d.y = p.clientY;
+      d.t = t;
     };
     const up = () => {
       if (!d.active) return;
-      d.active = false; c.classList.remove("grabbing");
+      d.active = false;
+      c.classList.remove('grabbing');
       // recent movement → glide; stale velocity (held still) → no fling
       if (performance.now() - d.t < 90) this.#fling = Math.max(-200, Math.min(200, d.vx));
     };
-    c.addEventListener("mousedown", down);
-    window.addEventListener("mousemove", move);
-    window.addEventListener("mouseup", up);
-    c.addEventListener("touchstart", down, { passive: false });
-    window.addEventListener("touchmove", move, { passive: false });
-    window.addEventListener("touchend", up);
+    c.addEventListener('mousedown', down);
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+    c.addEventListener('touchstart', down, { passive: false });
+    window.addEventListener('touchmove', move, { passive: false });
+    window.addEventListener('touchend', up);
   }
 
   // ---- backend hooks (overridden by subclasses) ---------------------
-  viewportRect() { throw new Error("viewportRect not implemented"); }
+  viewportRect() {
+    throw new Error('viewportRect not implemented');
+  }
   resizeBackend() {}
-  dragTarget() { throw new Error("dragTarget not implemented"); }
-  renderFrame() { throw new Error("renderFrame not implemented"); }
+  dragTarget() {
+    throw new Error('dragTarget not implemented');
+  }
+  renderFrame() {
+    throw new Error('renderFrame not implemented');
+  }
   applyScene() {}
 }

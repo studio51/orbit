@@ -4,7 +4,7 @@
  * renderers own the visual objects (canvas data / svg nodes) but defer *what
  * happens* to these helpers, so the behaviour can't drift between builds.
  */
-import { weightedPick, tint } from "./util.js";
+import { weightedPick, tint } from './util.js';
 
 // ---- beams -------------------------------------------------------------
 // Calm-and-majestic pacing: a slow, graceful draw with a long dissolve.
@@ -19,12 +19,20 @@ export function pickBeam(e) {
   if (!enabled.length) return null;
   const type = weightedPick(enabled, (t) => e.state.types[t.id].weight || 1);
   let city = null;
-  if (e.surge && e.surge.until > e.now && Math.random() < 0.7 && e.proj.visible(e.surge.city.lnglat)) {
+  if (
+    e.surge &&
+    e.surge.until > e.now &&
+    Math.random() < 0.7 &&
+    e.proj.visible(e.surge.city.lnglat)
+  ) {
     city = e.surge.city;
   }
   for (let k = 0; !city && k < 8; k++) {
     const c = e.data.CITIES[(Math.random() * e.data.CITIES.length) | 0];
-    if (e.proj.visible(c.lnglat)) { city = c; break; }
+    if (e.proj.visible(c.lnglat)) {
+      city = c;
+      break;
+    }
   }
   return city ? { type, city } : null;
 }
@@ -42,16 +50,23 @@ export function spawnMeteorParams(W, H) {
   const ang = (Math.random() * 0.5 + 0.62) * Math.PI; // ~112°–203°: down & left
   const speed = (W + H) * (0.26 + Math.random() * 0.22);
   return {
-    x, y, vx: Math.cos(ang) * speed, vy: Math.abs(Math.sin(ang)) * speed,
-    len: 90 + Math.random() * 170, w: 1.3 + Math.random() * 1.1, hr: 1.4 + Math.random() * 1.2,
-    t: 0, ttl: 1.1 + Math.random() * 0.8,
+    x,
+    y,
+    vx: Math.cos(ang) * speed,
+    vy: Math.abs(Math.sin(ang)) * speed,
+    len: 90 + Math.random() * 170,
+    w: 1.3 + Math.random() * 1.1,
+    hr: 1.4 + Math.random() * 1.2,
+    t: 0,
+    ttl: 1.1 + Math.random() * 0.8,
   };
 }
 // Advance a meteor; returns false once it should be removed.
 export function stepMeteor(m, dt, H) {
   m.t += dt;
   if (m.t >= m.ttl || m.x < -120 || m.y > H + 120) return false;
-  m.x += m.vx * dt; m.y += m.vy * dt;
+  m.x += m.vx * dt;
+  m.y += m.vy * dt;
   return true;
 }
 export function meteorOpacity(m) {
@@ -64,16 +79,22 @@ export function meteorOpacity(m) {
 // ---- fireworks ---------------------------------------------------------
 // One burst: a flash spec + N spark specs (numeric only; caller sets x/y = cx/cy).
 export function fireworkBurst(R, scale = 1, color) {
-  const cols = [color, "#ffffff", tint(color)];
+  const cols = [color, '#ffffff', tint(color)];
   const N = Math.round(48 * scale);
   const sparks = [];
   for (let i = 0; i < N; i++) {
-    const ang = Math.random() * Math.PI * 2, core = i < N * 0.28;
+    const ang = Math.random() * Math.PI * 2,
+      core = i < N * 0.28;
     const speed = (0.42 + Math.random() * 0.95) * R * 1.7 * scale * (core ? 1.3 : 1);
     sparks.push({
-      vx: Math.cos(ang) * speed, vy: Math.sin(ang) * speed,
-      r: core ? 1.5 : 2.1, color: core ? "#fff" : cols[(Math.random() * cols.length) | 0],
-      t: 0, ttl: 0.9 + Math.random() * 0.8, twk: Math.random() * 10, twinkle: Math.random() < 0.55,
+      vx: Math.cos(ang) * speed,
+      vy: Math.sin(ang) * speed,
+      r: core ? 1.5 : 2.1,
+      color: core ? '#fff' : cols[(Math.random() * cols.length) | 0],
+      t: 0,
+      ttl: 0.9 + Math.random() * 0.8,
+      twk: Math.random() * 10,
+      twinkle: Math.random() < 0.55,
     });
   }
   return { flash: { t: 0, ttl: 0.34, grow: R * 0.46 * scale }, sparks };
@@ -82,17 +103,20 @@ export function fireworkBurst(R, scale = 1, color) {
 export function fireworkBarrage(R, color) {
   const rx = (m) => (Math.random() * 2 - 1) * R * m;
   return [
-    { delay: 0,   dx: 0,         dy: 0,                                   color,        scale: 1 },
-    { delay: 210, dx: rx(0.20),  dy: -R * 0.14 * Math.random() - R * 0.04, color,        scale: 0.72 },
-    { delay: 410, dx: rx(0.24),  dy: -R * 0.02,                            color: tint(color), scale: 0.66 },
+    { delay: 0, dx: 0, dy: 0, color, scale: 1 },
+    { delay: 210, dx: rx(0.2), dy: -R * 0.14 * Math.random() - R * 0.04, color, scale: 0.72 },
+    { delay: 410, dx: rx(0.24), dy: -R * 0.02, color: tint(color), scale: 0.66 },
   ];
 }
 // Integrate one spark (gravity + drag). No-op for the flash.
 export function stepFirework(p, dt, R) {
   if (p.flash) return;
   const drag = Math.max(0, 1 - 2.4 * dt);
-  p.vx *= drag; p.vy *= drag; p.vy += R * 1.25 * dt;
-  p.x += p.vx * dt; p.y += p.vy * dt;
+  p.vx *= drag;
+  p.vy *= drag;
+  p.vy += R * 1.25 * dt;
+  p.x += p.vx * dt;
+  p.y += p.vy * dt;
 }
 export function fireworkAlpha(p) {
   const a = p.t / p.ttl;
