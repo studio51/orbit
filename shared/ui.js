@@ -1,26 +1,42 @@
-/* Orbit — UI wiring (shared by both renderers)
+/* Orbit: UI wiring (shared by every renderer)
  *
- * The panel, activity list and ticker are pure DOM and backend-agnostic: they
- * mutate the live `scene` / `sim` / activity-state objects the engine reads,
- * and notify the engine when a change needs a structural rebuild. Both
- * renderers reuse this verbatim so their controls behave identically.
+ * The panel, activity list, look lenses and ticker are pure DOM and
+ * backend-agnostic: they mutate the live `scene` / `sim` / activity-state
+ * objects the engine reads, and notify the engine when a change needs a
+ * structural rebuild. Every renderer reuses this verbatim so the controls
+ * behave identically.
  */
 import { SCENE_SCHEMA, formatValue } from './scene-schema.js';
 import { saveScene, STORAGE } from './config.js';
 
 const STRUCTURAL_KEYS = new Set(['density']); // changes that require a rebuild
 
-// ---- "Scene & effects" gear panel (demo only) --------------------------
-// Rendered straight from the schema, so adding a setting there adds a control here.
-export function buildScenePanel({ host, toggle, scene, onChange }) {
-  const fields = SCENE_SCHEMA.sections.flatMap((s) => s.fields);
+/**
+ * Build the scene settings panel (demo only), straight from the schema.
+ * Adding a setting to the schema adds a control here.
+ *
+ * @param {object} args panel inputs
+ * @param {HTMLElement} args.host element the controls render into
+ * @param {HTMLElement} args.toggle button that opens and closes the host
+ * @param {object} args.scene live scene settings, mutated as controls move
+ * @param {function(string, boolean): void} args.onChange called with (key, needsRebuild)
+ * @param {string} [args.renderer] 'webgpu' | 'canvas' | 'svg'; hides settings it cannot draw
+ * @param {string[]} [args.hide] setting keys to leave out (controlled elsewhere)
+ */
+export function buildScenePanel({ host, toggle, scene, onChange, renderer, hide = [] }) {
+  const shows = (x) => !x.renderers || !renderer || x.renderers.includes(renderer);
+  const sections = SCENE_SCHEMA.sections
+    .filter(shows)
+    .map((s) => ({ ...s, fields: s.fields.filter((f) => shows(f) && !hide.includes(f.key)) }))
+    .filter((s) => s.fields.length);
+  const fields = sections.flatMap((s) => s.fields);
   const byKey = {};
 
   fields.forEach((f) => {
     byKey[f.key] = f;
   });
 
-  host.innerHTML = SCENE_SCHEMA.sections.map(sectionHTML).join('');
+  host.innerHTML = sections.map(sectionHTML).join('');
 
   // hydrate controls from current scene
   fields.forEach((f) => {
@@ -282,4 +298,57 @@ export function createTicker(el, verbs) {
       while (el.children.length > 7) el.removeChild(el.lastChild);
     },
   };
+}
+
+// ---- look lenses (WebGPU) -------------------------------------------------
+
+/**
+ * Build the row of look "lenses": one mini-planet button per look.
+ *
+ * @param {object} args lens inputs
+ * @param {HTMLElement} args.host element the lenses render into
+ * @param {Array<{id: string, label: string, blurb: string, swatch: string[]}>} args.looks the looks
+ * @param {string} args.current id of the active look
+ * @param {function(string): (void|Promise<void>)} args.onSelect called when a lens is chosen
+ * @returns {{ set: function(string): void, busy: function(string, boolean): void }} lens controls
+ */
+export function buildLookLenses({ host, looks, current, onSelect }) {
+  host.innerHTML = looks
+    .map(
+      (l) =>
+        `<button class="lens" data-look="${l.id}" aria-pressed="false" title="${l.blurb}"` +
+        ` style="--l1:${l.swatch[0]};--l2:${l.swatch[1]};--l3:${l.swatch[2]}">` +
+        `<span class="orb"></span><span class="lens-name">${l.label}</span></button>`
+    )
+    .join('');
+
+  const buttons = [...host.querySelectorAll('.lens')];
+  const set = (id) => {
+    buttons.forEach((b) =>
+      b.setAttribute('aria-pressed', b.dataset.look === id ? 'true' : 'false')
+    );
+  };
+
+  host.addEventListener('click', (e) => {
+    const b = e.target.closest('.lens');
+
+    if (b) onSelect(b.dataset.look);
+  });
+  set(current);
+
+  return {
+    set,
+    busy(id, on) {
+      buttons.find((b) => b.dataset.look === id)?.classList.toggle('busy', on);
+    },
+  };
+}
+
+/**
+ * Re-dress the whole interface for a look (see the `data-look` tokens in ui.css).
+ *
+ * @param {string} id the look id
+ */
+export function applyLookTheme(id) {
+  document.documentElement.dataset.look = id;
 }

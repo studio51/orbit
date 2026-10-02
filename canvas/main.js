@@ -59,6 +59,11 @@ const ticker = createTicker(document.getElementById('ticker'), VERBS);
 engine.on('beam', ({ type, city, color }) => ticker.push(type, city.name, color));
 engine.on('surge', ({ city }) => ticker.special(`${city.name} is lighting up right now`));
 
+// Reached through the WebGPU page's fallback: say so, once.
+if (location.hash === '#no-webgpu') {
+  ticker.special('WebGPU is not available here, so this is the Canvas version');
+}
+
 // Controls + FPS meter are demo-only; the production hero stays clean.
 if (demo) {
   engine.fps = createFpsMeter('canvas');
@@ -75,6 +80,7 @@ if (demo) {
     host: document.getElementById('scene'),
     toggle: document.getElementById('scene-toggle'),
     scene,
+    renderer: 'canvas',
     onChange: (key, structural) => {
       if (structural) engine.rebuildFor(key);
       engine.applyScene();
