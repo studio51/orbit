@@ -1,80 +1,94 @@
 # Usage
 
 Orbit runs in two modes, served from a static file server (see
-[Install &amp; setup](INSTALL.md)).
+[Install & setup](INSTALL.md)).
 
-- **Clean (default)** — `/canvas/` or `/svg/`: just the globe, brand and live
-  ticker. No controls, no FPS meter. This is what you embed on the landing page.
-- **Demo** — add `?demo` (`/canvas/?demo`): adds the FPS meter and the full
-  control + **Scene & effects** panel for tuning. The chooser links here.
+- **Clean (default)**: `/webgpu/`, or `/canvas/` for the fallback. Just the globe, the
+  brand and the live ticker, with no controls. This is what you embed on a landing page.
+- **Demo**: add `?demo` (`/webgpu/?demo`). It adds the live feed, the look lenses, the
+  scene settings drawer and an FPS meter.
 
-The bare `/canvas/` or `/svg/` URL is the clean hero (globe only, no controls);
-the `?demo` links add live controls + FPS.
+URL options, all optional:
+
+| Option          | Effect                                                               |
+| --------------- | -------------------------------------------------------------------- |
+| `?demo`         | Show the controls and use the demo's saved settings                  |
+| `?look=<id>`    | Start in a look: `realistic`, `cartoon`, `neon`, `hologram` or `ink` |
+| `?config=<url>` | Fetch the scene configuration from a JSON endpoint                   |
+| `?debug`        | Expose the engine as `window.__orbit` in the console                 |
 
 ## Running locally
 
 The world map is fetched at runtime, so Orbit needs to be served over HTTP (not
-opened as a `file://` path). Any static server works, e.g.:
+opened as a `file://` path). Any static server works, for example:
 
 ```
-python3 -m http.server 8000   # → http://localhost:8000
+python3 -m http.server 8000   # then open http://localhost:8000
 ```
 
 ## Controls
 
-Everything is user-tunable live via the **Scene & effects** panel (in demo mode),
-organized into sections — Texture, Atmosphere, Day & night, Aurora, Effects, and
-Cosmos — so the spectacle can be dialed in for the landing page. Panel state and
-open/closed preference persist across reloads (via `localStorage`).
-
-The globe itself is **drag-to-spin** and continuously auto-rotates.
+- **Drag** the globe to spin it. A flick keeps gliding and settles back into the
+  auto-rotation. **Scroll or pinch** to zoom. The camera also leans slightly toward the
+  pointer.
+- **Look lenses** (bottom of the demo) switch the whole scene and the interface around
+  it. See [Looks](LOOKS.md).
+- **Scene settings** (the drawer on the right) tune clouds, bloom, atmosphere, day and
+  night, aurora, the moon, orbit rings and more. Only the settings the active renderer
+  can draw are shown. Everything persists across reloads.
+- The **live feed** lists each activity type with a counter, a colour swatch and a
+  toggle, plus activity rate, rotation speed, pause, and which activity sets off the
+  fireworks.
 
 ## Examples
 
-Make it yours by editing [`shared/data.js`](../shared/data.js) — set your own HQ,
+Make it yours by editing [`shared/data.js`](../shared/data.js) to set your own HQ,
 cities, and activity types (label / colour / weight). Then embed the clean hero:
 
 ```html
 <!-- inline config the platform embeds before the globe loads -->
 <script>
-  window.__ORBIT_SCENE__ = { aurora: { intensity: 0.6 } /* …schema fields… */ };
+  window.__ORBIT_SCENE__ = { look: 'neon', clouds: 0.4 /* ...schema fields... */ };
 </script>
-<iframe src="/canvas/" title="Activity globe"></iframe>
+<iframe src="/webgpu/" title="Activity globe"></iframe>
 ```
 
 Or point a deployment at per-deployment config JSON from your API:
 
 ```
-/canvas/?config=https://your-api.example.com/scene.json
+/webgpu/?config=https://your-api.example.com/scene.json
 ```
 
 ## Configuration
 
 Scene settings are defined once in
 [`shared/scene-schema.js`](../shared/scene-schema.js) as plain, JSON-serialisable
-data — every field's type, label, bounds and default. That single schema is the
+data: every field's type, label, bounds and default. That single schema is the
 contract with the games.directory platform:
 
 - the platform reads `SCENE_SCHEMA` (serve it with `JSON.stringify`) to render its
-  own settings UI — labels, ranges, options;
+  own settings UI (labels, ranges, options);
 - the globe runs **`sanitizeScene()`** on every incoming config, so out-of-range
   or unknown values can never reach the renderer (it clamps to bounds, validates
   selects, coerces toggles, drops unknown keys);
-- defaults are derived from the schema — there's no second copy to drift.
+- defaults are derived from the schema, so there is no second copy to drift;
+- a field or section can carry `renderers: ['webgpu']` (or `'canvas'`, `'svg'`) to say
+  which renderer draws it. Validation still accepts every key, and each demo panel
+  hides what it cannot draw.
 
 At runtime the scene is resolved by `resolveScene()` in this precedence:
 
-1. **`window.__ORBIT_SCENE__`** — an inline config object the platform embeds;
-2. **`?config=<url>`** — fetched per-deployment config JSON (from your API);
-3. **`?demo`** — the demo panel's own `localStorage`;
-4. otherwise — schema defaults.
+1. **`window.__ORBIT_SCENE__`**: an inline config object the platform embeds;
+2. **`?config=<url>`**: fetched per-deployment config JSON (from your API);
+3. **`?demo`**: the demo panel's own `localStorage`;
+4. otherwise, schema defaults.
 
 So the platform stores a validated config (bounded by the schema), and the plugin
 pulls it via inline embed or API; nothing else changes between deployments.
 
 ### Adding or adjusting a setting
 
-Add a field to [`shared/scene-schema.js`](../shared/scene-schema.js) — the
+Add a field to [`shared/scene-schema.js`](../shared/scene-schema.js): the
 default, the demo control, and bounds-validation all follow automatically. To add
 a whole new effect, write a layer factory and register it (see
 [Architecture → Key decisions](ARCHITECTURE.md#key-decisions)).
