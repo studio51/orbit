@@ -12,8 +12,8 @@
  *
  * Depends on the global `d3` (graticule/terminator geo-path strings).
  */
-import { easeInOutCubic, tint } from '../shared/util.js';
-import { DENSITY_STEP } from '../shared/config.js';
+import { easeInOutCubic, tint } from '../../shared/util.js';
+import { DENSITY_STEP } from '../../shared/config.js';
 import {
   ORBIT_DEFS,
   computeOrbit,
@@ -25,7 +25,7 @@ import {
   pickNodes,
   auroraSpecs,
   auroraSegments,
-} from '../shared/geometry.js';
+} from '../../shared/geometry.js';
 import {
   BEAM,
   pickBeam,
@@ -37,7 +37,7 @@ import {
   fireworkBarrage,
   stepFirework,
   fireworkAlpha,
-} from '../shared/sim.js';
+} from '../../shared/sim.js';
 import { el } from './engine.js';
 
 // Build an SVG path string from a list of flat [x,y,x,y,…] segments.
