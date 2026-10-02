@@ -1,88 +1,139 @@
 # Architecture
 
-> How orbit is put together, and why.
+> How Orbit is put together, and why.
 
 ## Overview
 
-Orbit is a real-time, interactive 3D globe built as the centerpiece hero for the
-[games.directory](https://games.directory) landing page. It visualizes live
-gaming activity from around the world as luminous beams arcing across an
-accurately-rendered rotating Earth, converging on a central HQ point.
+Orbit is a real-time 3D globe that draws live activity as beams arcing across a
+rotating Earth toward a central HQ point. It started as the hero globe for the
+[games.directory](https://games.directory) landing page and is packaged here as a
+standalone, drop-in widget with no dependencies on that site.
 
-This repo is that globe **extracted from games.directory as a standalone,
-self-contained widget** — a drop-in "plugin" with no dependencies on the rest of
-the site. Anyone can clone it, open it in a browser, and play with the live
-controls, or drop it into their own landing page and point it at their own HQ,
-cities, and activity types (see [`shared/data.js`](../shared/data.js)).
+There are two renderers over one shared core:
 
-What the globe renders, in layers:
+- **WebGPU** (`webgpu/`) is the default. A true 3D sphere, lit by the real sun,
+  with five switchable [looks](LOOKS.md).
+- **Canvas 2D** (`canvas/`) is the fallback for browsers without WebGPU. The WebGPU
+  page hands over to it automatically and keeps your URL options.
 
-- **Core visualization** — an orthographic, geographically-accurate globe (D3 geo
-  projection) with dotted-relief landmasses, drag-to-spin interaction, and
-  continuous auto-rotation; **activity beams** that fire from real city
-  coordinates toward HQ, each colored and labeled by activity type, with a live
-  event feed alongside; and impact flashes / fireworks when beams land.
-- **Atmosphere & realism** — a day/night terminator with adjustable darkness and
-  twinkling city lights on the dark side, an atmospheric rim glow that gently
-  breathes, an edge corona, a latitude/longitude grid, and an aurora effect with
-  tunable intensity, latitude, speed, and color scheme.
-- **Cosmic dazzle** — a parallax starfield (two drifting, out-of-phase twinkling
-  layers), shooting stars / meteors, comet trails on the activity beams, and
-  orbital rings and star nodes.
+The original SVG renderer lives on in `legacy/svg/` for reference. It still runs but
+is no longer maintained.
 
-## Two renderers, one core
+## The WebGPU pipeline
 
-Orbit ships **rendered two ways** — a **Canvas 2D** build and an **SVG** build —
-over a shared core, so the two strategies can be compared head-to-head:
+Everything is [Three.js](https://threejs.org) WebGPU with TSL (its node shading
+language), loaded from a CDN through an import map. There is no bundler and no build
+step. The renderer is split into small modules that talk to the engine through one
+bag of shared uniforms and one look state.
 
-- **Canvas** is the recommended one: the highest, most stable frame rate.
-- **SVG** keeps the original vector-crisp look.
+```
+load        topology (world-atlas 1:50m)  →  world.js
+              • land mask 4096×2048, shelf / continentality blurs, procedural city lights
+bake once   bake.js, full-screen GPU passes into half-float targets
+              • land albedo + height, ocean colour, climate, cloud field, Milky Way, nebula
+every frame engine.js
+              • clock, real sun position, camera rig, intro, surges, beam cadence
+              • compute passes: spark integration, mote advection
+              • scene pass: sky, globe, clouds, atmosphere, beams, rings, sparks, cosmos
+              • post pass: bloom, chromatic fringe, scanlines, vignette, grain, tone map
+```
 
-The two renderers share _everything_ except the actual painting. Geometry,
-simulation, the engine, data, config and UI all live in `shared/`, so there's no
-duplicated logic. Each renderer's `engine.js` (~30–80 lines) and `layers.js` are
-**rendering only** — all behaviour comes from `shared/`.
+### Why bake
 
-A `BaseEngine` owns the viewport, clock, rotation, drag, sun and an event bus;
-each renderer is a thin subclass that fills in a few backend hooks. Every visual
-element is a self-contained **layer** (`{ name, z, build, resize, simulate,
-draw }`) drawn in z-order.
+The biomes, relief, ocean colour and clouds never change from frame to frame, yet
+evaluating them as 3D noise per pixel cost roughly 180 noise octaves per fragment.
+`bake.js` evaluates them once on the GPU into equirectangular textures, so the
+per-frame globe shader only samples them. That change took the globe from 50 fps at
+the lowest adaptive quality to a steady 60 fps at full resolution on the same
+machine.
+
+### Compute particles
+
+`sparks.js` holds two systems that live entirely on the GPU:
+
+- **Sparks** are an impact burst ring buffer. A beam landing launches one tiny
+  compute dispatch that seeds a block of the buffer, and a second kernel integrates
+  every spark each frame (drag, a pull back toward the planet, a soft bounce off the
+  surface).
+- **Motes** are about 40k ambient dust particles on differential-rotation shells,
+  advected by a single kernel per frame.
+
+The CPU never touches a particle after seeding.
+
+### Beams
+
+A beam is a camera-facing ribbon along a lifted great-circle arc. When it is born the
+CPU writes a handful of numbers (endpoints, colour, birth time) into an instanced
+attribute buffer. The whole animation (draw-on, comet trail, hold, fade) then runs in
+the shader from `time - birth`, so a beam costs nothing per frame.
+
+## Looks
+
+A look is plain data in [`shared/looks.js`](../shared/looks.js). The shaders evaluate
+each look as a branch gated by a weight uniform, and `LookState` eases those weights
+and the look's numeric and colour parameters, so switching looks is a cross-fade with
+no recompile. See [Looks](LOOKS.md).
 
 ## Structure
 
 ES modules, no build step.
 
 ```
-index.html        chooser + side-by-side compare
-shared/           used by BOTH renderers
-  data.js         HQ, activity types, cities — the file you edit to customise
-  scene-schema.js the JSON settings contract: fields, bounds, defaults, sanitiser
-  config.js       scene defaults (from schema), sim defaults, resolveScene()
-  engine.js       BaseEngine: loop, layer registry, rotation, drag, spawn cadence
-  geo.js          Projection (d3.geoOrthographic) + fast projection + sun
-  geometry.js     pure geometry: orbit/aurora bands, land/spike/node builds, arc math
-  sim.js          simulation: beam pick, particle physics, firework/meteor specs
-  util.js         easing / colour / weighted pick
-  ui.js           scene panel, activity list, controls, ticker (pure DOM)
-  fps.js          live FPS meter
-  ui.css          shared chrome styling
-canvas/           engine subclass + rendering-only layers + entry   ← recommended
-svg/              engine subclass + rendering-only layers + entry    (the original look)
-legacy/           the original single-file version, kept for reference
+index.html          landing page (live preview, look picker)
+shared/             used by every renderer
+  looks.js          the look definitions (dependency-free data)
+  data.js           HQ, activity types, cities (the file you edit to customise)
+  scene-schema.js   the JSON settings contract: fields, bounds, defaults, sanitiser
+  config.js         defaults from the schema, sim defaults, resolveScene()
+  ui.js, ui.css     panels, look lenses, ticker; the interface themes itself per look
+  engine.js, geo.js, geometry.js, sim.js, util.js, fps.js
+                    the 2D core (Canvas and legacy SVG) and small helpers
+webgpu/             the WebGPU renderer
+  main.js           entry: scene resolution, UI wiring, fallback gate
+  engine.js         renderer, clock, sun, intro, surges, adaptive resolution
+  rig.js            orbit camera: drag, fling, zoom, parallax
+  world.js          topology to land / shelf / light textures
+  bake.js           one-time GPU bakes of the static planet and sky
+  earth.js          globe, clouds, atmosphere
+  sky.js            stars, nebula, sun glare, per-look backdrops
+  beams.js          activity beams, impact rings, HQ beacon
+  sparks.js         GPU compute particles
+  cosmos.js         moon, orbit rings, shooting stars, aurora
+  post.js           bloom and per-look finishing
+  looks.js          LookState (the eased uniforms for the look data)
+  uniforms.js, tsl-util.js
+canvas/             Canvas 2D renderer (the fallback)
+legacy/             the original single file version and the retired SVG renderer
 ```
 
 ## Key decisions
 
-- **Shared core, thin renderers.** Behaviour lives once in `shared/`; the
-  per-renderer code only paints. Adding an effect = write a layer factory in
-  `canvas/layers.js` (and/or `svg/layers.js`, using the shared geometry/sim
-  helpers) and register it in `registerDefaultLayers()`.
+- **Three.js is the one runtime dependency.** It is pinned to an exact version in the
+  import map and loaded from a CDN, so the repo keeps its no-build, no-`package.json`
+  shape. Hand-writing a WebGPU renderer would have cost far more than it returned.
 - **Schema as the single source of truth.** Scene settings are defined once in
-  [`shared/scene-schema.js`](../shared/scene-schema.js) as plain,
-  JSON-serialisable data — every field's type, label, bounds and default.
-  Defaults are derived from the schema, so there's no second copy to drift, and
-  `sanitizeScene()` validates every incoming config against it (see
-  [Usage → Configuration](USAGE.md#configuration)).
-- **No build step, minimal dependencies.** Plain ES modules; D3 v7 and
-  `topojson-client` load from a CDN, and world landmass topology (`world-atlas`)
-  is fetched at runtime with fallback CDNs.
+  [`shared/scene-schema.js`](../shared/scene-schema.js) as plain JSON-serialisable
+  data, and `sanitizeScene()` validates every incoming config against it. Fields can
+  be scoped to renderers with `renderers: [...]`, so each demo panel shows only what
+  its renderer can draw.
+- **Looks are data, not code paths.** One shader set serves every look, so adding a
+  look is a data entry plus a branch, and the cross-fade is free.
+- **The interface re-dresses itself.** `shared/ui.css` is built from tokens, and
+  setting `data-look` on `<html>` swaps all of them.
+
+## Shader pitfalls
+
+These cost real debugging time, so they are written down here.
+
+- **Shared nodes across `If` branches.** TSL emits a node where it is first used. If a
+  node (or a `.toVar()`) is first used inside one look's `If`, a different look that
+  reuses it reads a value that was only assigned inside the branch that did not run.
+  Declare shared variables before the branches (see `globeColor` in `earth.js`), or
+  give each branch its own copy of the inputs (see `inputs()` in `sky.js`).
+- **`pow` with a negative base is NaN.** Metal tolerates `pow(x, 2)` for negative `x`,
+  which hides the bug; other GPUs return NaN. Use `sq(x)`, clamp the base, or
+  `max(x, 0)`. One NaN in an HDR buffer turns into a black blob through bloom.
+- **Seed pooled instance buffers.** Dead slots with zero vectors make `normalize(0)`
+  NaN. Give them valid dummy values.
+- **Sampling across the longitude seam.** Derive 2D texture coordinates from the
+  sphere's own continuous `uv`, not from `atan`, or the mip level jumps at the seam.

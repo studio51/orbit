@@ -13,3 +13,4 @@ jobs:
           node-version: '24'
       - run: npx prettier --check .
       - run: npx eslint .
+      - run: node --test tests/*.test.js

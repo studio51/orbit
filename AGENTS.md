@@ -46,16 +46,25 @@ Comments are part of the standard — treat them as required, not optional.
 
 See the stack section below for the exact doc-comment syntax in this repo's language.
 
-## Stack: Vanilla JS
+## Stack: Vanilla JS + Three.js (WebGPU)
 
 - No build step. Open `index.html` directly, or serve the folder:
   `npx serve .` / `python3 -m http.server`.
-- Plain ES modules: no bundler, no framework. Keep it dependency-free.
+- Plain ES modules: no bundler, no framework, no `package.json`.
+- **Three.js is the one allowed runtime dependency.** It is pinned to an exact version in
+  the import maps (`webgpu/index.html`) and loaded from a CDN. Keep everything else
+  dependency-free, and when bumping Three.js change every import map in one commit.
+- `webgpu/` is the primary renderer and `canvas/` is the fallback. `legacy/` is kept for
+  reference and is not maintained.
 - Format with Prettier: `npx prettier --check .` (run `--write` to fix).
 - House style with ESLint: `npx eslint .` (run `--fix` to fix). Enforces the
-  "breathing" layout Prettier can't — a blank line before a function's final
+  "breathing" layout Prettier can't: a blank line before a function's final
   expression, between class members, and around declaration groups.
-- Shared logic lives in `shared/`; entry points stay thin.
+- Unit tests: `node --test tests/*.test.js`.
+- Shared logic lives in `shared/`; entry points stay thin. Look definitions live only in
+  `shared/looks.js`.
+- Shaders are TSL. Read the "Shader pitfalls" in `docs/ARCHITECTURE.md` before editing
+  them (shared nodes across `If` branches, `pow` with negative bases, seeded buffers).
 
 ## Before you finish
 

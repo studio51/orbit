@@ -91,6 +91,13 @@ export const CITIES = [
   { name: 'Auckland', lnglat: [174.76, -36.85] },
 ];
 
+// High-resolution (1:50m) topology for the true-3D WebGPU renderer (first reachable wins).
+// A sphere you can see the coastline of needs far more detail than the flat 2D dots do.
+export const LAND_URLS_HD = [
+  'https://cdn.jsdelivr.net/npm/world-atlas@2/land-50m.json',
+  'https://unpkg.com/world-atlas@2/land-50m.json',
+];
+
 // Map topology sources (first reachable wins).
 export const LAND_URLS = [
   'https://cdn.jsdelivr.net/npm/world-atlas@2/land-110m.json',

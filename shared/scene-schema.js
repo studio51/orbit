@@ -19,17 +19,58 @@
  *   toggle: { key, type:"toggle", label, default }
  *   select: { key, type:"select", label, default, options:[{value,label}] }
  * `display`: "pct" (value×100%), "pctOfMax" (value/max×100%), or omit and use `unit`.
+ *
+ * Renderer scoping: any section or field may carry `renderers: ['webgpu' | 'canvas' | 'svg', …]`.
+ * Omitted means "every renderer". The validator still accepts every key (the contract is
+ * renderer-independent); the demo panel just hides what the active renderer can't draw.
  */
 
+import { LOOKS } from './looks.js';
+
 export const SCENE_SCHEMA = {
-  version: 1,
+  version: 2,
   sections: [
+    {
+      id: 'look',
+      title: 'Clouds & bloom',
+      renderers: ['webgpu'],
+      fields: [
+        {
+          key: 'look',
+          type: 'select',
+          label: 'Art direction',
+          default: 'realistic',
+          options: LOOKS.map((l) => ({ value: l.id, label: l.label })),
+        },
+        {
+          key: 'clouds',
+          type: 'range',
+          label: 'Cloud cover',
+          default: 0.55,
+          min: 0,
+          max: 1,
+          step: 0.05,
+          display: 'pct',
+        },
+        {
+          key: 'bloom',
+          type: 'range',
+          label: 'Bloom',
+          default: 1,
+          min: 0,
+          max: 2,
+          step: 0.1,
+          display: 'pctOfMax',
+        },
+      ],
+    },
     {
       id: 'texture',
       title: 'Texture',
       fields: [
         {
           key: 'dotSize',
+          renderers: ['canvas', 'svg'],
           type: 'range',
           label: 'Dot size',
           default: 2.9,
@@ -41,6 +82,7 @@ export const SCENE_SCHEMA = {
         },
         {
           key: 'texture',
+          renderers: ['canvas', 'svg'],
           type: 'range',
           label: 'Relief texture',
           default: 0.32,
@@ -51,6 +93,7 @@ export const SCENE_SCHEMA = {
         },
         {
           key: 'landBright',
+          renderers: ['canvas', 'svg'],
           type: 'range',
           label: 'Land brightness',
           default: 1,
@@ -61,6 +104,7 @@ export const SCENE_SCHEMA = {
         },
         {
           key: 'density',
+          renderers: ['canvas', 'svg'],
           type: 'select',
           label: 'Dot density',
           default: 'med',
@@ -173,9 +217,16 @@ export const SCENE_SCHEMA = {
       id: 'effects',
       title: 'Effects',
       fields: [
-        { key: 'corona', type: 'toggle', label: 'Edge corona', default: true },
+        {
+          key: 'corona',
+          renderers: ['canvas', 'svg'],
+          type: 'toggle',
+          label: 'Edge corona',
+          default: true,
+        },
         {
           key: 'coronaIntensity',
+          renderers: ['canvas', 'svg'],
           type: 'range',
           label: 'Corona intensity',
           default: 0.1,
@@ -184,7 +235,13 @@ export const SCENE_SCHEMA = {
           step: 0.02,
           display: 'pctOfMax',
         },
-        { key: 'nodes', type: 'toggle', label: 'Star nodes', default: true },
+        {
+          key: 'nodes',
+          renderers: ['canvas', 'svg'],
+          type: 'toggle',
+          label: 'Star nodes',
+          default: true,
+        },
         { key: 'orbits', type: 'toggle', label: 'Orbital rings', default: true },
       ],
     },
@@ -213,15 +270,51 @@ export const SCENE_SCHEMA = {
           step: 0.05,
           display: 'pct',
         },
-        { key: 'parallaxStars', type: 'toggle', label: 'Parallax stars', default: true },
+        {
+          key: 'parallaxStars',
+          renderers: ['canvas', 'svg'],
+          type: 'toggle',
+          label: 'Parallax stars',
+          default: true,
+        },
         { key: 'nebula', type: 'toggle', label: 'Nebula haze', default: true },
         { key: 'moon', type: 'toggle', label: 'The Moon', default: true },
-        { key: 'comet', type: 'toggle', label: 'Rare comet', default: true },
-        { key: 'constellations', type: 'toggle', label: 'Constellations', default: true },
-        { key: 'beamTrails', type: 'toggle', label: 'Comet beam trails', default: true },
-        { key: 'atmosPulse', type: 'toggle', label: 'Atmosphere pulse', default: true },
+        {
+          key: 'comet',
+          renderers: ['canvas', 'svg'],
+          type: 'toggle',
+          label: 'Rare comet',
+          default: true,
+        },
+        {
+          key: 'constellations',
+          renderers: ['canvas', 'svg'],
+          type: 'toggle',
+          label: 'Constellations',
+          default: true,
+        },
+        {
+          key: 'beamTrails',
+          renderers: ['canvas', 'svg'],
+          type: 'toggle',
+          label: 'Comet beam trails',
+          default: true,
+        },
+        {
+          key: 'atmosPulse',
+          renderers: ['canvas', 'svg'],
+          type: 'toggle',
+          label: 'Atmosphere pulse',
+          default: true,
+        },
         { key: 'starTwinkle', type: 'toggle', label: 'Star twinkle', default: true },
-        { key: 'starDrift', type: 'toggle', label: 'Star drift', default: true },
+        {
+          key: 'starDrift',
+          renderers: ['canvas', 'svg'],
+          type: 'toggle',
+          label: 'Star drift',
+          default: true,
+        },
       ],
     },
   ],

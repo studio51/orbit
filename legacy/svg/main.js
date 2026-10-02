@@ -10,15 +10,15 @@
  *   • ?demo                 the demo's own localStorage
  *   • otherwise             schema defaults
  */
-import { HQ, ACTIVITY_TYPES, CITIES, VERBS, LAND_URLS } from '../shared/data.js';
-import { SIM_DEFAULTS, resolveScene } from '../shared/config.js';
+import { HQ, ACTIVITY_TYPES, CITIES, VERBS, LAND_URLS } from '../../shared/data.js';
+import { SIM_DEFAULTS, resolveScene } from '../../shared/config.js';
 import {
   buildScenePanel,
   buildActivityControls,
   buildBaseControls,
   createTicker,
-} from '../shared/ui.js';
-import { createFpsMeter } from '../shared/fps.js';
+} from '../../shared/ui.js';
+import { createFpsMeter } from '../../shared/fps.js';
 import { Engine } from './engine.js';
 import { registerDefaultLayers } from './layers.js';
 
@@ -74,6 +74,7 @@ if (demo) {
     host: document.getElementById('scene'),
     toggle: document.getElementById('scene-toggle'),
     scene,
+    renderer: 'svg',
     onChange: (key, structural) => {
       if (structural) engine.rebuildFor(key);
       engine.applyScene();

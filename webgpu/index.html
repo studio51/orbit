@@ -1,9 +1,13 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-look="realistic">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Orbit · Activity Globe (Canvas)</title>
+    <title>Orbit · Activity Globe</title>
+    <meta
+      name="description"
+      content="A real-time 3D globe of live activity, rendered with WebGPU."
+    />
     <link
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='7' fill='%235ad1ff'/%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%235ad1ff' stroke-width='1.6'/%3E%3C/svg%3E"
@@ -11,16 +15,23 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600&family=Fredoka:wght@400;500;600&family=Instrument+Sans:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Share+Tech+Mono&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="../shared/ui.css" />
-    <link rel="stylesheet" href="canvas.css" />
+    <link rel="stylesheet" href="webgpu.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.webgpu.min.js",
+          "three/webgpu": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.webgpu.min.js",
+          "three/tsl": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.tsl.min.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+        }
+      }
+    </script>
   </head>
   <body>
-    <div class="stars"></div>
-    <div class="stars stars2"></div>
-
     <div class="stage">
       <canvas id="globe-canvas" aria-label="Rotating globe of live activity"></canvas>
     </div>
@@ -28,7 +39,7 @@
     <div class="brand">
       <div class="mark">
         <div class="glyph" aria-hidden="true"></div>
-        <div class="name"><b>Orbit</b></div>
+        <div class="name">Orbit</div>
       </div>
       <div class="tag">Live activity, worldwide</div>
     </div>
@@ -63,11 +74,11 @@
 
       <div class="row-btns">
         <button class="btn" id="pause">
-          <svg class="ico pp-pause" viewBox="0 0 12 12">
+          <svg class="ico pp-pause" viewBox="0 0 12 12" aria-hidden="true">
             <rect x="1.5" y="1" width="3" height="10" rx="1" fill="currentColor" />
             <rect x="7.5" y="1" width="3" height="10" rx="1" fill="currentColor" />
           </svg>
-          <svg class="ico pp-play" viewBox="0 0 12 12">
+          <svg class="ico pp-play" viewBox="0 0 12 12" aria-hidden="true">
             <path d="M2 1l9 5-9 5z" fill="currentColor" />
           </svg>
           <span class="pp-label">Pause</span>
@@ -77,10 +88,10 @@
         <button class="eye" id="fw-toggle" aria-pressed="true" title="Toggle fireworks">
           <span class="eye-dot"></span>
         </button>
-        <span class="fw-label">Fireworks on</span>
+        <span class="fw-label">Fireworks for</span>
         <select id="fw-trigger" class="fw-select" title="Activity that sets off fireworks"></select>
       </div>
-      <div class="hint">Drag to spin, tap a swatch to recolour.</div>
+      <div class="hint">Drag to spin, scroll to zoom, tap a swatch to recolour.</div>
 
       <button class="scene-expander" id="scene-toggle" aria-pressed="false" aria-controls="scene">
         <svg
@@ -91,6 +102,7 @@
           stroke-width="2"
           stroke-linecap="round"
           stroke-linejoin="round"
+          aria-hidden="true"
         >
           <circle cx="12" cy="12" r="3"></circle>
           <path
@@ -98,7 +110,7 @@
           ></path>
         </svg>
         <span class="se-label">Scene settings</span>
-        <svg class="chev" viewBox="0 0 12 12">
+        <svg class="chev" viewBox="0 0 12 12" aria-hidden="true">
           <path
             d="M2 4l4 4 4-4"
             fill="none"
@@ -109,8 +121,11 @@
           />
         </svg>
       </button>
-      <div class="scene" id="scene" hidden></div>
     </aside>
+
+    <aside class="drawer scene" id="scene" aria-label="Scene settings" hidden></aside>
+
+    <nav class="lenses" id="lenses" aria-label="Look"></nav>
 
     <div id="loading">
       <div>
@@ -119,8 +134,12 @@
       </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js"></script>
-    <script type="module" src="main.js"></script>
+    <script type="module">
+      // WebGPU gate: no adapter means the Canvas 2D renderer takes over with the same options.
+      const adapter = navigator.gpu ? await navigator.gpu.requestAdapter().catch(() => null) : null;
+
+      if (adapter) import('./main.js');
+      else location.replace('../canvas/index.html' + location.search + '#no-webgpu');
+    </script>
   </body>
 </html>
