@@ -71,6 +71,12 @@
         </div>
         <input type="range" id="rot" min="0" max="30" step="1" />
       </div>
+      <div class="ctrl">
+        <div class="ctrl-top">
+          <span id="res-label">Resolution</span><span class="val" id="res-val">auto</span>
+        </div>
+        <div class="sc-seg" id="resolution" role="group" aria-labelledby="res-label"></div>
+      </div>
 
       <div class="row-btns">
         <button class="btn" id="pause">
@@ -91,7 +97,10 @@
         <span class="fw-label">Fireworks for</span>
         <select id="fw-trigger" class="fw-select" title="Activity that sets off fireworks"></select>
       </div>
-      <div class="hint">Drag to spin, scroll to zoom, tap a swatch to recolour.</div>
+      <div class="hint">
+        Drag to spin, scroll to zoom. <kbd>Space</kbd> pauses, <kbd>1</kbd> to <kbd>5</kbd> switch
+        looks, <kbd>H</kbd> hides the interface, <kbd>F</kbd> goes full screen.
+      </div>
 
       <button class="scene-expander" id="scene-toggle" aria-pressed="false" aria-controls="scene">
         <svg
@@ -127,10 +136,10 @@
 
     <nav class="lenses" id="lenses" aria-label="Look"></nav>
 
-    <div id="loading">
+    <div id="loading" role="status">
       <div>
         <div class="spinner"></div>
-        Preparing the globe
+        <span id="loading-step">Preparing the globe</span>
       </div>
     </div>
 

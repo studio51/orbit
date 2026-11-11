@@ -2,17 +2,18 @@
  *
  * Owns the renderer, the scene graph, the clock and the per-frame choreography:
  * sun position from the real clock, the cinematic arrival, city surges, beam
- * spawn cadence, adaptive resolution and the look cross-fade.
+ * spawn cadence, the frame governor and the look cross-fade.
  *
  * The visual modules are independent and talk to the engine only through the
  * shared uniform bag (`U`) and the `LookState`:
  *
  *   earth.js   planet + clouds + atmosphere     sky.js     stars / nebula / sun glare
  *   beams.js   activity arcs, rings, beacon     sparks.js  GPU-compute particles
- *   post.js    bloom + per-look finishing
+ *   post.js    bloom + per-look finishing       governor.js  resolution vs frame rate
  *
  * Events (via `on`): 'beam' ({ type, city, color }) when an activity spawns,
- * 'impact' ({ type, city, color }) when it lands, 'surge' ({ city }).
+ * 'impact' ({ type, city, color }) when it lands, 'surge' ({ city }),
+ * 'pace' ({ scale, target, refresh }) when the governor changes resolution or target.
  */
 import * as THREE from 'three/webgpu';
 import { DEG, clamp } from '../shared/util.js';
@@ -28,13 +29,13 @@ import { createSparks } from './sparks.js';
 import { createCosmos } from './cosmos.js';
 import { createPost } from './post.js';
 import { lnglatToVec3 } from './tsl-util.js';
+import { FrameGovernor } from './governor.js';
+import { createGpuClock } from './gpu-clock.js';
 
 const INTRO_MS = 3200; // cinematic arrival duration
 const INTRO_BEAMS_AT = 0.85; // beams hold until the scene has mostly bloomed
-const QUALITY_MIN = 0.55; // never drop below ~half-res backing store
-const EMA_SLOW_MS = 21; // sustained frames slower than this → step down
-const EMA_FAST_MS = 14.5; // sustained frames faster than this → step up
-const COOLDOWN_FRAMES = 150; // min frames between quality changes
+const MAX_PIXEL_RATIO = 2; // native pixels up to 2x; beyond that the eye cannot tell
+const PACE_KEY = 'orbit-pace'; // remembered resolution scale, so a reload starts settled
 const SURGE_FIRST_MS = 35000; // first city surge after load
 const SURGE_EVERY_MS = [50000, 90000]; // min..max between surges
 const SURGE_LEN_MS = 6500; // how long a surge lasts
@@ -43,10 +44,6 @@ export class GlobeEngine {
   #handlers = {};
 
   #hooks = [];
-
-  #ema = 16.7;
-
-  #cooldown = 60;
 
   #last = 0;
 
@@ -65,13 +62,26 @@ export class GlobeEngine {
    * @param {object} args.sim live simulation settings
    * @param {object} args.data HQ, ACTIVITY_TYPES, CITIES
    * @param {object} args.world baked world textures (see world.js)
+   * @param {number} [args.refresh] the display's refresh rate in hertz (see `probeRefresh`)
+   * @param {number|null} [args.resolution] a fixed resolution scale, or null for automatic
+   * @param {boolean} [args.wheelZoom] zoom on the mouse wheel (off for an embedded globe)
    */
-  constructor({ canvas, scene, sim, data, world }) {
+  constructor({
+    canvas,
+    scene,
+    sim,
+    data,
+    world,
+    refresh = 60,
+    resolution = null,
+    wheelZoom = true,
+  }) {
     this.canvas = canvas;
     this.scene = scene;
     this.sim = sim;
     this.data = data;
     this.world = world;
+    this.wheelZoom = wheelZoom;
 
     // live per-activity state (colour / enabled / count), keyed by id
     this.state = { types: {} };
@@ -87,11 +97,15 @@ export class GlobeEngine {
     this.time = 0; // seconds since start
     this.frameCount = 0;
     this.intro = 1;
-    this.quality = 1;
+    this.pace = new FrameGovernor({ refresh, scale: this.#recallScale(refresh) });
+    this.quality = this.pace.scale; // resolution scale, 1 = the display's native pixels
+    this.gpuMs = NaN; // smoothed GPU frame time, for the performance readout
     this.surge = null;
     this.hqVec = lnglatToVec3(data.HQ.lnglat);
     this.W = 0;
     this.H = 0;
+
+    if (resolution !== null) this.quality = this.pace.pin(resolution);
   }
 
   // ---- lifecycle -------------------------------------------------------
@@ -106,12 +120,14 @@ export class GlobeEngine {
       canvas: this.canvas,
       antialias: true,
       powerPreference: 'high-performance',
+      trackTimestamp: true, // GPU frame times for the governor (see gpu-clock.js)
     });
 
     await renderer.init();
 
     this.renderer = renderer;
     this.isWebGPU = !!renderer.backend?.isWebGPUBackend;
+    this.gpuClock = createGpuClock(renderer);
 
     this.camera = new THREE.PerspectiveCamera(30, 1, 0.05, 200);
     this.stage = new THREE.Scene();
@@ -120,19 +136,20 @@ export class GlobeEngine {
       element: this.canvas,
       sim: this.sim,
       scene: this.scene,
+      wheelZoom: this.wheelZoom,
     });
 
     const { U, look, world } = this;
 
     this.baked = bakePlanet(renderer, world); // one-time GPU bakes of the static fields
 
-    const sky = createSky({ U, look, baked: this.baked });
     const earth = createEarth({ world, baked: this.baked, U, look });
 
-    this.stage.backgroundNode = sky.node;
-    this.sky = sky;
     this.earth = earth;
     this.stage.add(earth.group);
+
+    this.sky = this.use(createSky({ engine: this }));
+    this.stage.add(this.sky.group);
 
     this.beams = this.use(createBeams({ engine: this }));
     this.stage.add(this.beams.group);
@@ -275,6 +292,18 @@ export class GlobeEngine {
   }
 
   /**
+   * Fix the resolution scale, or hand it back to the governor.
+   *
+   * @param {number|null} scale 0.5..1 of the display's native pixels, or null for automatic
+   */
+  setResolution(scale) {
+    this.quality = this.pace.pin(scale);
+    this.resize();
+
+    this.#announcePace();
+  }
+
+  /**
    * Eased progress through the sub-window [a, b] of the intro.
    *
    * @param {number} a window start (0..1 of the intro)
@@ -297,13 +326,17 @@ export class GlobeEngine {
 
     this.W = Math.max(1, rect.width);
     this.H = Math.max(1, rect.height);
-    this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1) * this.quality);
+    this.renderer.setPixelRatio(
+      Math.min(MAX_PIXEL_RATIO, window.devicePixelRatio || 1) * this.quality
+    );
     this.renderer.setSize(this.W, this.H, false);
     this.camera.aspect = this.W / this.H;
     this.camera.updateProjectionMatrix();
     this.rig.setAspect(this.camera.aspect);
 
     for (const m of this.modules) m.resize && m.resize(this);
+
+    if (this.post) this.post.resize(this);
   }
 
   // ---- main loop -------------------------------------------------------
@@ -318,7 +351,7 @@ export class GlobeEngine {
     this.time += dt;
     this.frameCount++;
 
-    this.#adaptQuality(raw);
+    this.#pace(raw);
 
     // cinematic arrival
     this.intro = this.scene.intro === false ? 1 : Math.min(1, (now - this.#introT0) / INTRO_MS);
@@ -345,7 +378,16 @@ export class GlobeEngine {
     if (this.post) this.post.render();
     else this.renderer.render(this.stage, this.camera);
 
-    if (this.fps) this.fps.tick(now);
+    this.gpuClock.poll();
+
+    if (this.fps) {
+      this.fps.tick(now, {
+        scale: this.quality,
+        target: this.pace.target,
+        gpuMs: this.pace.gpuMs,
+        pinned: this.pace.pinned,
+      });
+    }
   }
 
   // Real subsolar point from the clock (or a headlight when day/night is off).
@@ -445,21 +487,58 @@ export class GlobeEngine {
     return city ? { type, city } : null;
   }
 
-  // EMA of raw frame time → nudge resolution down/up with hysteresis + cooldown.
-  #adaptQuality(rawMs) {
-    if (rawMs <= 0 || rawMs > 250) return; // tab was hidden / first frame
+  // Feed the governor and apply its verdict.
+  #pace(rawMs) {
+    const before = this.pace.target;
+    const next = this.pace.sample(rawMs, this.gpuClock ? this.gpuClock.take() : NaN);
 
-    this.#ema += (Math.min(rawMs, 80) - this.#ema) * 0.05;
-    if (--this.#cooldown > 0) return;
+    this.gpuMs = this.pace.gpuMs;
 
-    if (this.#ema > EMA_SLOW_MS && this.quality > QUALITY_MIN) {
-      this.quality = Math.max(QUALITY_MIN, this.quality - 0.15);
-      this.#cooldown = COOLDOWN_FRAMES;
+    if (next !== null) {
+      this.quality = next;
       this.resize();
-    } else if (this.#ema < EMA_FAST_MS && this.quality < 1) {
-      this.quality = Math.min(1, this.quality + 0.15);
-      this.#cooldown = COOLDOWN_FRAMES * 2; // step up more cautiously
-      this.resize();
+      this.#rememberScale();
+    }
+
+    if (next !== null || this.pace.target !== before) this.#announcePace();
+  }
+
+  #announcePace() {
+    this.emit('pace', {
+      scale: this.quality,
+      target: this.pace.target,
+      refresh: this.pace.refresh,
+    });
+  }
+
+  // The scale a previous visit settled on, when it was measured on a comparable display.
+  #recallScale(refresh) {
+    try {
+      const saved = JSON.parse(localStorage.getItem(PACE_KEY) || 'null');
+      const dpr = Math.min(MAX_PIXEL_RATIO, window.devicePixelRatio || 1);
+
+      if (saved && saved.refresh === refresh && saved.dpr === dpr) return saved.scale;
+    } catch (e) {
+      /* storage unavailable: start from full resolution */
+    }
+
+    return 1;
+  }
+
+  #rememberScale() {
+    if (this.pace.pinned) return;
+
+    try {
+      localStorage.setItem(
+        PACE_KEY,
+        JSON.stringify({
+          scale: this.quality,
+          refresh: this.pace.refresh,
+          dpr: Math.min(MAX_PIXEL_RATIO, window.devicePixelRatio || 1),
+        })
+      );
+    } catch (e) {
+      /* ignore */
     }
   }
 }

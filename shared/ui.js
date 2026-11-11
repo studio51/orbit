@@ -344,6 +344,77 @@ export function buildLookLenses({ host, looks, current, onSelect }) {
   };
 }
 
+// ---- resolution (WebGPU) ---------------------------------------------------
+/** Resolution choices offered in the demo: automatic, or a fixed share of native pixels. */
+export const RESOLUTIONS = [
+  { value: null, label: 'Auto' },
+  { value: 1, label: '100%' },
+  { value: 0.75, label: '75%' },
+  { value: 0.5, label: '50%' },
+];
+
+/**
+ * Build the resolution control: automatic (the frame governor decides) or a fixed scale.
+ *
+ * @param {object} args control inputs
+ * @param {HTMLElement} args.host element the buttons render into
+ * @param {number|null} [args.current] the scale in effect, null for automatic
+ * @param {function(number|null): void} args.onChange called with the chosen scale
+ */
+export function buildResolutionControl({ host, current = null, onChange }) {
+  host.innerHTML = RESOLUTIONS.map(
+    (r, i) => `<button type="button" data-res="${i}">${r.label}</button>`
+  ).join('');
+
+  const buttons = [...host.querySelectorAll('button')];
+  const mark = (value) => {
+    buttons.forEach((b, i) => {
+      const on = RESOLUTIONS[i].value === value;
+
+      b.classList.toggle('on', on);
+
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+  };
+
+  host.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-res]');
+
+    if (!b) return;
+
+    const { value } = RESOLUTIONS[+b.dataset.res];
+
+    mark(value);
+
+    onChange(value);
+  });
+
+  mark(RESOLUTIONS.some((r) => r.value === current) ? current : null);
+}
+
+// ---- keyboard shortcuts ------------------------------------------------------
+/**
+ * Bind single-key shortcuts. Keys typed into a form control are left alone, and so is
+ * anything held with a modifier, so browser and system shortcuts keep working.
+ *
+ * @param {Object<string, function(KeyboardEvent): void>} keys map of `event.key` (lower case,
+ *   or ' ' for space) to its handler
+ */
+export function bindShortcuts(keys) {
+  window.addEventListener('keydown', (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
+    if (e.target.closest?.('input, select, textarea, [contenteditable]')) return;
+
+    const fn = keys[e.key.length === 1 ? e.key.toLowerCase() : e.key];
+
+    if (!fn) return;
+
+    e.preventDefault();
+
+    fn(e);
+  });
+}
+
 /**
  * Re-dress the whole interface for a look (see the `data-look` tokens in ui.css).
  *
