@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Frame governor for the WebGPU renderer: it measures the display's refresh rate and the GPU time per frame, and trades resolution to hold that rate (120 fps on a 120 Hz display, 60 on a 60 Hz one), then gives the resolution back when there is room. The settled scale is remembered across reloads.
+- Performance readout in the demo: frame rate against its target, GPU time per frame and the resolution scale. A **Resolution** control fixes the scale or returns it to Auto, and `?scale=<n>` does the same for an embed.
+- Keyboard shortcuts in the demo: `Space` pauses, `1` to `5` switch looks, `H` hides the interface, `F` toggles full screen, `R` replays the arrival.
+- `?embed` mode: the clean page without the brand, which leaves the mouse wheel and vertical swipes to the host page. `?ticker=<px>` lowers the ticker to clear a host's header, and an embedded globe posts `{ orbit: 'pace', fps, target, scale, gpuMs }` to its host.
+- Unit tests for the frame governor against a simulated display.
 - WebGPU renderer (`webgpu/`) built on Three.js and TSL: a true 3D globe with a real sun and terminator, a ray-marched atmosphere, living clouds with shadows, ocean glint, relief, procedural city lights, aurora, a lit moon, orbit rings with satellites and shooting stars.
 - Five switchable looks, cross-faded live without recompiling shaders: Realistic, Cartoon, Neon, Hologram and Ink & Paper. Choose one with the new look lenses, `?look=<id>`, or the `look` scene setting.
 - GPU compute particles: impact sparks in a ring buffer and about 40k ambient orbital motes, advected entirely by compute kernels.
@@ -27,6 +32,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The WebGPU renderer no longer evaluates noise per frame. Relief uses a baked slope, waves and grain use a tileable detail texture, and the moon, the aurora and the paper backdrop are baked. Measured on an M2 MacBook Air in Low Power Mode at retina resolution (3024×1800), GPU time per frame at full resolution fell from 24 ms to 8 ms and the frame rate rose from 38 fps to the panel's 60. Left to adapt, the old renderer settled between 55% and 85% resolution; the new one holds 100%.
+- Stars are about 24,000 crisp point sprites instead of a per-pixel lattice, and the sky dome is no longer shaded behind the globe.
+- The aurora is drawn as stacked curtains around both ovals, so it gains height at the limb.
+- The sun is a small hot disc with a tight halo. The old wide glare washed half the frame in grey when the sun was in view.
+- Smoother relief, crisper clouds with slowly evolving edges, and engraving lines in the Ink & Paper look that dissolve into tone instead of beating into moiré.
+- The adaptive resolution no longer gets stuck low. The old scaler needed frames faster than 14.5 ms to step up, which a 60 Hz display never delivers.
+- The landing page is rebuilt around the live globe: it is the hero, unframed, with a live frame-rate readout from the globe itself, plus sections on what it draws, how it holds its frame rate and how to embed it.
+- The ticker bows out while the settings drawer is open instead of sliding over the globe, and loading names each stage.
 - Refreshed interface: glass panels, a settings drawer, look lenses, and a redrawn brand. Every surface themes itself per look (glass, chunky cartoon cards, neon, hologram wireframe, paper and ink), and the Canvas fallback shares the same chrome.
 - The root page is now a landing page for the WebGPU renderer. The Canvas 2D renderer is the automatic fallback and keeps your URL options.
 - The Canvas renderer hides settings it cannot draw (the schema marks them by renderer).
