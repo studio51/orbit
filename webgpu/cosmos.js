@@ -2,11 +2,16 @@
  *
  * The things around the planet that make the scene feel inhabited:
  *
- *   moon           a procedural moon on a slow orbit that crosses in front of
+ *   moon           a baked procedural moon on a slow orbit that crosses in front of
  *                  and behind the globe (it keeps its framing as the camera turns)
- *   orbit rings    three tilted rings, each with a satellite
+ *   orbit rings    tilted rings, some with a satellite
  *   shooting stars short-lived streaks, rate set by `meteorRate`
- *   aurora         curtains of light around both poles, drifting with the scene
+ *   aurora         stacked curtains of light around both auroral ovals
+ *
+ * The aurora is drawn only where it can appear: a band of geometry around each
+ * oval, stacked in a few shells so the curtains gain height at the limb. Its
+ * motion comes from a baked noise texture (see bake.js), so the whole effect is
+ * a few texture samples over a sliver of the screen.
  *
  * Each effect blends its look variants with arithmetic weights, never `If`,
  * so no shared node is ever first-declared inside a branch that does not run.
@@ -14,6 +19,7 @@
 import * as THREE from 'three/webgpu';
 import {
   float,
+  vec2,
   vec3,
   vec4,
   uniform,
@@ -28,19 +34,18 @@ import {
   fract,
   sin,
   cos,
-  asin,
-  atan,
   dot,
   cross,
   normalize,
   fwidth,
+  texture,
   positionLocal,
   positionWorld,
   normalWorld,
   cameraPosition,
   uv,
 } from 'three/tsl';
-import { fbm, noise3, sq } from './tsl-util.js';
+import { sq } from './tsl-util.js';
 import { LOOK_INDEX } from './looks.js';
 import { ORBIT_DEFS } from '../shared/geometry.js';
 import { AURORA_SCHEMES } from '../shared/config.js';
@@ -48,6 +53,12 @@ import { AURORA_SCHEMES } from '../shared/config.js';
 const R = LOOK_INDEX;
 const METEORS = 6; // concurrent shooting stars
 const METEOR_SEGS = 24;
+const AURORA_LAYERS = 12; // stacked shells per oval (enough that the stack reads as one curtain)
+const AURORA_COLS = 160; // segments around the oval
+const AURORA_ROWS = 6; // segments across the band
+const AURORA_HALF = 15; // band half-width in degrees of latitude
+const AURORA_BASE = 1.012; // lowest shell radius
+const AURORA_HEIGHT = 0.058; // radial extent of the stack
 
 /**
  * Premultiplied-alpha blend: additive glow when alpha is 0, a solid stroke otherwise.
@@ -79,6 +90,51 @@ function hatch(v, width) {
 }
 
 /**
+ * Build the aurora band geometry: for each hemisphere, a stack of strips that follow the
+ * auroral oval. Vertices carry only band coordinates; the shader places them, so the
+ * band follows the live `auroraLat` setting without rebuilding.
+ *
+ * @returns {THREE.BufferGeometry} geometry with an `aBand` attribute:
+ *   `[longitude 0..1, band position -1..1, hemisphere ±1, shell 0..1]`
+ */
+function auroraGeometry() {
+  const band = [],
+    idx = [];
+  const row = AURORA_COLS + 1;
+
+  for (const hemi of [1, -1]) {
+    for (let l = 0; l < AURORA_LAYERS; l++) {
+      const first = band.length / 4;
+
+      for (let j = 0; j <= AURORA_ROWS; j++) {
+        for (let i = 0; i <= AURORA_COLS; i++) {
+          band.push(i / AURORA_COLS, (j / AURORA_ROWS) * 2 - 1, hemi, l / (AURORA_LAYERS - 1));
+        }
+      }
+
+      for (let j = 0; j < AURORA_ROWS; j++) {
+        for (let i = 0; i < AURORA_COLS; i++) {
+          const a = first + j * row + i;
+
+          idx.push(a, a + 1, a + row, a + 1, a + row + 1, a + row);
+        }
+      }
+    }
+  }
+
+  const geo = new THREE.BufferGeometry();
+
+  geo.setAttribute(
+    'position',
+    new THREE.BufferAttribute(new Float32Array((band.length / 4) * 3), 3)
+  );
+  geo.setAttribute('aBand', new THREE.BufferAttribute(new Float32Array(band), 4));
+  geo.setIndex(idx);
+
+  return geo;
+}
+
+/**
  * Create the moon, orbit rings, shooting stars and aurora.
  *
  * @param {object} args build inputs
@@ -86,7 +142,7 @@ function hatch(v, width) {
  * @returns {{ name: string, group: THREE.Group, update: Function }} the module
  */
 export function createCosmos({ engine }) {
-  const { U, look } = engine;
+  const { U, look, baked } = engine;
   const W = look.weights;
   const sun = U.sun;
   const group = new THREE.Group();
@@ -98,14 +154,13 @@ export function createCosmos({ engine }) {
   const mv = normalize(cameraPosition.sub(positionWorld));
   const ndl = dot(mn, sun);
   const lit = clamp(ndl, 0, 1);
-  const maria = smoothstep(0.05, 0.35, fbm(mp.mul(2.3), 4));
+  const albedo = texture(baked.moonTex, vec2(uv().x.add(0.25), uv().y)).r; // maria, grain, rims
   const rim = float(1).sub(clamp(dot(mn, mv), 0, 1));
 
-  const moonReal = vec3(0.34, 0.33, 0.32)
-    .mul(maria.mul(0.55).add(0.55))
-    .mul(noise3(mp.mul(34.0)).mul(0.14).add(0.9))
-    .mul(float(1).sub(smoothstep(0.55, 0.62, abs(noise3(mp.mul(7.0)))).mul(0.22)))
-    .mul(lit.mul(2.1).add(0.012));
+  // a soft terminator and a whisper of earthshine on the dark limb
+  const moonReal = vec3(0.36, 0.35, 0.34)
+    .mul(albedo)
+    .mul(smoothstep(-0.04, 0.5, ndl).mul(2.2).add(0.014));
   const moonToon = mix(
     vec3(0.28, 0.22, 0.6),
     vec3(1.0, 0.95, 0.72),
@@ -279,38 +334,60 @@ export function createCosmos({ engine }) {
     uSpeed = uniform(1),
     uColA = uniform(new THREE.Color('#5cffb0')),
     uColB = uniform(new THREE.Color('#b58cff'));
-  const auroraMat = new THREE.MeshBasicNodeMaterial();
+  const auroraMat = new THREE.MeshBasicNodeMaterial({ side: THREE.DoubleSide });
 
   premult(auroraMat);
   auroraMat.depthTest = true;
 
-  const ap = normalize(positionLocal);
-  const latDeg = asin(clamp(ap.y, -1, 1)).mul(180 / Math.PI);
-  const lngR = atan(ap.x, ap.z);
+  const aBand = attribute('aBand', 'vec4'); // longitude 0..1, band -1..1, hemisphere, shell 0..1
+  const lngA = aBand.x.mul(Math.PI * 2);
+  const offDeg = aBand.y.mul(AURORA_HALF); // degrees from the oval's centre line
+  const latR = uLat
+    .add(offDeg)
+    .clamp(20, 89.5)
+    .mul(Math.PI / 180)
+    .mul(aBand.z);
+  const ap = vec3(cos(latR).mul(sin(lngA)), sin(latR), cos(latR).mul(cos(lngA))); // unit position
+  const shell = aBand.w;
+
+  auroraMat.positionNode = ap.mul(float(AURORA_BASE).add(shell.mul(AURORA_HEIGHT)));
+
+  // Motion is a scroll through baked noise: u wraps around the oval, v is time.
   const t = U.time.mul(uSpeed).mul(0.35);
-  const wobble = fbm(vec3(sin(lngR).mul(1.6), cos(lngR).mul(1.6), t.mul(0.6)), 3).mul(5.0);
-  const dist = abs(abs(latDeg).sub(uLat)).sub(0).add(wobble.mul(0.6));
-  const curtain = exp(sq(dist.div(3.6)).negate());
-  const rays = pow(
-    fbm(vec3(ap.x.mul(8.0), ap.z.mul(8.0), t.add(abs(latDeg).mul(0.12))), 3)
-      .mul(0.5)
-      .add(0.5)
-      .max(0),
-    1.6
-  );
+  const wobble = texture(baked.auroraTex, vec2(aBand.x, t.mul(0.07)))
+    .level(0)
+    .r.mul(5.0);
+  const fine = texture(
+    baked.auroraTex,
+    vec2(aBand.x.add(shell.mul(0.004)), t.mul(0.11).add(offDeg.mul(0.012)))
+  ).level(0);
+  const dist = abs(offDeg.add(wobble.mul(1.1)));
+  const curtain = exp(sq(dist.div(3.4)).negate());
+  const rays = smoothstep(0.3, 0.78, fine.g.mul(0.5).add(0.5));
+  const pulse = fine.b.mul(0.35).add(0.75);
   const night = smoothstep(0.35, -0.3, dot(ap, sun));
   const aView = float(1).sub(clamp(dot(ap, normalize(cameraPosition.sub(ap))), 0, 1));
-  const aur = curtain.mul(rays.mul(1.6).add(0.2)).mul(night).mul(aView.mul(1.8).add(0.55));
+
+  // Bright and dense at the base, thinning with height; the stack sums to one curtain when
+  // seen from above and separates into height when seen edge-on at the limb.
+  const profile = exp(shell.mul(-2.4)).mul(5.4 / AURORA_LAYERS);
+  const aur = curtain
+    .mul(rays.mul(1.9).add(0.18))
+    .mul(pulse)
+    .mul(night)
+    .mul(aView.mul(1.8).add(0.55))
+    .mul(profile);
   const aurHue = mix(
     vec3(uColA),
     vec3(uColB),
-    smoothstep(-2.0, 4.0, wobble.add(abs(latDeg).sub(uLat)))
+    clamp(shell.mul(0.85).add(smoothstep(-2.0, 4.0, wobble.add(offDeg)).mul(0.45)), 0, 1)
   );
 
   auroraMat.outputNode = vec4(aurHue.mul(aur).mul(uAurora).mul(look.p.auroraAmt).mul(0.9), 0);
 
-  const aurora = new THREE.Mesh(new THREE.SphereGeometry(1.03, 160, 96), auroraMat);
+  const aurora = new THREE.Mesh(auroraGeometry(), auroraMat);
 
+  aurora.frustumCulled = false;
   aurora.renderOrder = 2;
   group.add(aurora);
 

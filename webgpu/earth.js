@@ -1,8 +1,9 @@
 /* Orbit: the planet (WebGPU renderer)
  *
- * Three meshes, all TSL shaders. The expensive procedural fields (biomes, relief,
- * ocean colour, the cloud field) are baked once into textures by bake.js, so the
- * per-frame shaders only sample them:
+ * Three meshes, all TSL shaders. Every procedural field (biomes, relief and its
+ * slope, ocean colour, the cloud field) is baked once into textures by bake.js,
+ * and the fine detail (waves, grain, cloud erosion) comes from one small tileable
+ * noise texture, so the per-frame shaders sample textures and never evaluate noise:
  *
  *   • the globe        surface colour for the active look(s), sun + terminator,
  *                      night lights, relief, glint, cloud shadows
@@ -41,6 +42,7 @@ import {
   asin,
   atan,
   dot,
+  cross,
   length,
   normalize,
   fwidth,
@@ -48,7 +50,7 @@ import {
   positionWorld,
   cameraPosition,
 } from 'three/tsl';
-import { noise3, rotateY, bumpNormal, dirToUv, sq } from './tsl-util.js';
+import { rotateY, dirToUv, sq } from './tsl-util.js';
 import { LOOK_INDEX } from './looks.js';
 
 export const ATMOS_RADIUS = 1.075; // outer edge of the atmosphere shell
@@ -56,6 +58,8 @@ export const CLOUD_RADIUS = 1.011; // cloud shell radius
 
 const RAD = Math.PI / 180;
 const R = LOOK_INDEX; // look name → weight slot
+const RELIEF = 0.034; // how far the baked slope tilts the land normal
+const ATMOS_STEPS = 6; // samples along the view ray through the atmosphere
 
 /**
  * Anti-aliased lat/long grid lines over an equirectangular uv.
@@ -79,6 +83,8 @@ export function gridLines(uvE, cols, rows, width = 1.0) {
 /**
  * Anti-aliased engraving lines: the sphere cut by parallel planes.
  * Seam-free (works in 3D), so the lines rotate cleanly with the globe.
+ * Where a line period shrinks toward a pixel (far limb, zoomed out, low resolution)
+ * the lines dissolve into their average tone instead of beating into moiré.
  *
  * @param {Node} p unit position (vec3)
  * @param {Node} axis plane normal (vec3)
@@ -88,12 +94,12 @@ export function gridLines(uvE, cols, rows, width = 1.0) {
  */
 function engrave(p, axis, density, width) {
   const v = dot(p, axis).mul(density);
-  const aa = fwidth(v).mul(1.2).add(0.001);
+  const fw = fwidth(v); // line periods per pixel
+  const aa = fw.mul(1.2).add(0.001);
   const d = abs(fract(v).sub(0.5)).mul(2);
+  const lines = float(1).sub(smoothstep(width.sub(aa), width.add(aa), d));
 
-  return float(1)
-    .sub(smoothstep(width.sub(aa), width.add(aa), d))
-    .mul(step(0.001, width));
+  return mix(lines, width, smoothstep(0.22, 0.5, fw)).mul(step(0.001, width));
 }
 
 /**
@@ -118,7 +124,7 @@ const AXIS_C = new THREE.Vector3(-0.6, 0.5, 0.62).normalize();
  * Build the planet, cloud shell and atmosphere.
  *
  * @param {object} args build inputs
- * @param {object} args.world baked masks ({ landTex, fieldTex, lightsTex }, see world.js)
+ * @param {object} args.world baked masks ({ landTex, fieldTex, lightsTex, detailTex }, see world.js)
  * @param {object} args.baked baked fields ({ landTex, oceanTex, climTex, miscTex }, see bake.js)
  * @param {object} args.U shared uniforms (see uniforms.js)
  * @param {object} args.look the LookState
@@ -134,12 +140,14 @@ export function createEarth({ world, baked, U, look }) {
   const p = positionLocal.normalize().toVar('p');
   const uvE = vec2(uv().x.add(0.25), uv().y).toVar('uvE'); // sphere uv → equirectangular texture uv
   const landS = texture(world.landTex, uvE).r; // crisp land mask
-  const fld = texture(world.fieldTex, uvE); // shelf / broad / continentality blurs
-  const lightsV = texture(world.lightsTex, uvE).r;
-  const A = texture(baked.landTex, uvE); // land albedo (rgb) + height (a)
-  const B = texture(baked.oceanTex, uvE); // ocean albedo
-  const C = texture(baked.climTex, uvE); // arid, ice, patch, elevation
-  const M = texture(baked.miscTex, uvE); // cloud field (r), coast wobble (g)
+  const fld = texture(world.fieldTex, uvE).toVar('fld'); // shelf / broad / continentality blurs
+  const lightsV = texture(world.lightsTex, uvE).r.toVar('lightsV');
+  const A = texture(baked.landTex, uvE).toVar('texA'); // land albedo (rgb) + height (a)
+  const B = texture(baked.oceanTex, uvE).toVar('texB'); // ocean albedo
+  const C = texture(baked.climTex, uvE).toVar('texC'); // arid, ice, patch, elevation
+  const M = texture(baked.miscTex, uvE).toVar('texM'); // cloud (r), coast wobble (g), slope (b, a)
+  const tileUv = uvE.mul(vec2(2, 1)); // square texels for the tileable detail noise
+  const detail = (scale, drift = vec2(0)) => texture(world.detailTex, tileUv.mul(scale).add(drift));
   const lat = abs(p.y).toVar('lat'); // |sin(latitude)|
   const V = normalize(cameraPosition.sub(p)).toVar('V');
   const ndlGeo = dot(p, L).toVar('ndlGeo');
@@ -169,19 +177,20 @@ export function createEarth({ world, baked, U, look }) {
 
   // ===================== Look: realistic =====================
   const realistic = () => {
-    const height = A.a.add(noise3(p.mul(38.0)).mul(0.05));
-    const land = A.rgb.mul(noise3(p.mul(90.0)).mul(0.08).add(1.0));
+    const grain = detail(46).a.sub(0.5); // micro variation that holds up when zoomed in
+    const land = A.rgb.mul(grain.mul(0.2).add(1.0));
     const oceanMask = float(1).sub(landM).mul(float(1).sub(iceM));
     const albedo = mix(B.rgb, land.mul(U.intro.land.oneMinus().mul(-0.8).add(1)), landM);
 
-    // lighting (relief bump on land, animated micro-waves on water)
-    const Nland = bumpNormal(p, p, height.mul(landM), float(0.03));
-    const waves = vec3(
-      noise3(p.mul(260.0).add(vec3(U.time.mul(0.25), 0, 0))),
-      noise3(p.mul(260.0).add(vec3(0, U.time.mul(0.21), 7))),
-      noise3(p.mul(260.0).add(vec3(3, 0, U.time.mul(0.18))))
-    );
-    const Nwater = normalize(p.add(waves.mul(0.011)));
+    // Relief: tilt the normal by the baked slope (east, north). One sample, smooth at any zoom.
+    const east = normalize(vec3(p.z, 0, p.x.negate()).add(vec3(0.00001, 0, 0)));
+    const north = cross(p, east);
+    const Nland = normalize(p.sub(east.mul(M.b).add(north.mul(M.a)).mul(RELIEF)));
+
+    // Water: two layers of tileable noise drifting against each other make moving micro-waves.
+    const w1 = detail(54, vec2(U.time.mul(0.011), U.time.mul(0.004))).rgb;
+    const w2 = detail(37, vec2(U.time.mul(-0.007), U.time.mul(0.009))).rgb;
+    const Nwater = normalize(p.add(w1.add(w2).sub(1.0).mul(0.016)));
     const N = mix(Nwater, Nland, landM);
     const diffuse = clamp(dot(N, L).add(0.06).div(1.06), 0, 1);
     const ambient = vec3(0.7, 0.85, 1.0).mul(float(1).sub(U.darkness).mul(0.07));
@@ -448,6 +457,12 @@ export function createEarth({ world, baked, U, look }) {
       .add(dayF)
       .add(nightF)
       .add(limbK)
+      .add(fld.x)
+      .add(lightsV)
+      .add(A.x)
+      .add(B.x)
+      .add(C.x)
+      .add(M.x)
       .add(coastField)
       .add(landM)
       .add(cloudAtSurface);
@@ -474,7 +489,19 @@ export function createEarth({ world, baked, U, look }) {
   const cloudMat = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false });
   const cloudOut = Fn(() => {
     const cp = normalize(positionWorld);
-    const d = cloudShape(texture(baked.miscTex, vec2(uv().x.add(0.25), uv().y)).r);
+    const cuv = vec2(uv().x.add(0.25), uv().y);
+
+    // Erode the baked field with drifting detail noise: crisp, slowly evolving edges from a
+    // field that is itself only as sharp as its bake.
+    const erode = texture(
+      world.detailTex,
+      cuv
+        .mul(vec2(2, 1))
+        .mul(9)
+        .add(vec2(U.time.mul(0.0016), U.time.mul(0.0007)))
+    );
+    const raw = texture(baked.miscTex, cuv).r;
+    const d = cloudShape(raw.add(erode.r.sub(0.5).mul(0.13)).add(erode.g.sub(0.5).mul(0.05)));
     const rgb = vec3(0).toVar(),
       alpha = float(0).toVar();
 
@@ -553,7 +580,7 @@ export function createEarth({ world, baked, U, look }) {
       const tP = b.negate().sub(sqrt(max(discP, 0)));
       const hitsPlanet = discP.greaterThan(0).and(tP.greaterThan(0));
       const tEnd = hitsPlanet.select(tP, t1);
-      const ds = max(tEnd.sub(t0), 0).div(10.0);
+      const ds = max(tEnd.sub(t0), 0).div(ATMOS_STEPS);
       const acc = vec3(0).toVar();
       const mieAcc = float(0).toVar();
       const cosT = dot(rd, L);
@@ -561,17 +588,12 @@ export function createEarth({ world, baked, U, look }) {
         .mul(0.4224)
         .div(pow(float(1.5776).sub(float(1.52).mul(cosT)), 1.5));
 
-      Loop(10, ({ i }) => {
+      Loop(ATMOS_STEPS, ({ i }) => {
         const pos = ro.add(rd.mul(t0.add(ds.mul(float(i).add(0.5)))));
-        const h = clamp(
-          length(pos)
-            .sub(1.0)
-            .div(ATMOS_RADIUS - 1.0),
-          0,
-          1
-        );
+        const dist = length(pos);
+        const h = clamp(dist.sub(1.0).div(ATMOS_RADIUS - 1.0), 0, 1);
         const dens = exp(h.mul(-5.5));
-        const sn = dot(normalize(pos), L);
+        const sn = dot(pos, L).div(dist);
         const sunV = smoothstep(-0.2, 0.22, sn);
         const red = mix(vec3(1.0, 0.32, 0.1), vec3(1.0, 0.97, 0.92), smoothstep(-0.05, 0.45, sn));
 

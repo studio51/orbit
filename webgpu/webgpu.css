@@ -11,3 +11,7 @@
 #globe-canvas.grabbing {
   cursor: grabbing;
 }
+/* Embedded in a host page: vertical swipes scroll the page, horizontal drags spin the globe. */
+body.embed #globe-canvas {
+  touch-action: pan-y;
+}

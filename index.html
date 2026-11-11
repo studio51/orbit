@@ -6,7 +6,7 @@
     <title>Orbit · A live globe in five looks</title>
     <meta
       name="description"
-      content="Orbit is a real-time 3D globe that draws live activity as light arcing across the Earth. WebGPU, five looks, drop-in."
+      content="Orbit is a real-time 3D globe that draws live activity as light arcing across the Earth. WebGPU, five looks, built to hold your display's refresh rate, drop-in."
     />
     <link
       rel="icon"
@@ -20,24 +20,33 @@
     />
     <link rel="stylesheet" href="shared/ui.css" />
     <style>
-      /* The landing page reuses the interface tokens from shared/ui.css, so choosing a look
-         re-dresses this page the same way it re-dresses the demo. */
+      /* The landing page is built from the interface tokens in shared/ui.css, so choosing a
+         look re-dresses this whole page the same way it re-dresses the demo. Nothing here
+         sets a colour or a typeface of its own. */
       html,
       body {
         height: auto;
         min-height: 100%;
       }
       body {
-        overflow: auto;
-        display: flex;
-        flex-direction: column;
-        min-height: 100vh;
+        --gutter: clamp(20px, 5vw, 76px);
+        --measure: 34rem;
+        overflow-x: hidden;
+        overflow-y: auto;
       }
+      a {
+        color: inherit;
+      }
+
+      /* ---- header ---- */
       .top {
+        position: relative;
+        z-index: 3;
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 26px 30px 0;
+        gap: 20px;
+        padding: 24px var(--gutter) 0;
       }
       .top .brand {
         position: static;
@@ -45,8 +54,8 @@
       }
       .top nav {
         display: flex;
-        gap: 22px;
-        font-size: calc(14px * var(--fs));
+        gap: clamp(14px, 2.4vw, 28px);
+        font-size: calc(14.5px * var(--fs));
       }
       .top nav a {
         color: var(--fg-muted);
@@ -55,29 +64,54 @@
       .top nav a:hover {
         color: var(--fg);
       }
-      main {
-        flex: 1;
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
-        gap: 48px;
+
+      /* ---- hero: the live globe is the picture, the words sit beside it ---- */
+      .hero {
+        position: relative;
+        display: flex;
         align-items: center;
-        max-width: 1240px;
+        min-height: clamp(600px, calc(100vh - 70px), 900px);
+        padding: 24px var(--gutter) 56px;
+      }
+      .globe {
+        position: absolute;
+        top: -70px; /* runs up behind the header, so the sky has no top edge */
+        right: 0;
+        bottom: 0;
+        width: min(68vw, 1100px);
+        /* fade the left and bottom edges into the page, so there is no frame */
+        -webkit-mask-image:
+          linear-gradient(90deg, transparent 0, #000 26%),
+          linear-gradient(0deg, transparent 0, #000 16%);
+        -webkit-mask-composite: source-in;
+        mask-image:
+          linear-gradient(90deg, transparent 0, #000 26%),
+          linear-gradient(0deg, transparent 0, #000 16%);
+        mask-composite: intersect;
+      }
+      .globe iframe {
         width: 100%;
-        margin: 0 auto;
-        padding: 36px 30px 56px;
+        height: 100%;
+        border: 0;
+        display: block;
+      }
+      .pitch {
+        position: relative;
+        z-index: 2;
+        width: min(100%, 35rem);
       }
       h1 {
-        margin: 0 0 18px;
-        font-size: clamp(34px, 5vw, 58px);
-        line-height: 1.04;
-        letter-spacing: -0.025em;
+        margin: 0 0 22px;
+        font-size: clamp(38px, 5.6vw, 76px);
+        line-height: 1;
+        letter-spacing: -0.03em;
         font-weight: 650;
-        max-width: 13ch;
+        text-wrap: balance;
       }
       .lede {
         margin: 0 0 34px;
-        max-width: 46ch;
-        font-size: calc(17px * var(--fs));
+        max-width: 30rem;
+        font-size: calc(17.5px * var(--fs));
         line-height: 1.55;
         color: var(--fg-muted);
       }
@@ -88,20 +122,20 @@
         margin: 0 -4px 12px;
       }
       .looks .lens {
-        min-width: 74px;
+        min-width: 72px;
         color: var(--fg-muted);
       }
       .looks .lens[aria-pressed='true'] {
         color: var(--fg);
       }
       .looks .orb {
-        width: 50px;
-        height: 50px;
+        width: 48px;
+        height: 48px;
       }
       #blurb {
         margin: 0 0 30px;
-        min-height: 2.7em;
-        max-width: 44ch;
+        min-height: 3em;
+        max-width: 28rem;
         font-size: calc(15px * var(--fs));
         line-height: 1.5;
       }
@@ -115,7 +149,7 @@
         align-items: center;
         padding: 12px 20px;
         border-radius: var(--r-ctl);
-        border: var(--bw) solid var(--panel-brd);
+        border: var(--bw) solid color-mix(in srgb, var(--fg) 45%, transparent);
         color: var(--fg);
         text-decoration: none;
         font-weight: 600;
@@ -123,9 +157,6 @@
         transition:
           background-color 0.15s,
           transform 0.1s;
-      }
-      .cta:not(.primary) {
-        border-color: color-mix(in srgb, var(--fg) 45%, transparent);
       }
       .cta:hover {
         background: var(--accent-soft);
@@ -142,47 +173,254 @@
         filter: brightness(1.08);
         background: var(--accent);
       }
-      .frame {
-        position: relative;
-        aspect-ratio: 1 / 1;
-        width: 100%;
-        max-height: 78vh;
-        border-radius: calc(var(--r-panel) + 6px);
-        border: var(--bw) solid var(--panel-brd);
-        box-shadow: var(--shadow);
-        overflow: hidden;
-        background: var(--bg);
-        transition:
-          border-color 0.6s ease,
-          box-shadow 0.6s ease;
-      }
-      .frame iframe {
-        position: absolute;
-        inset: 0;
-        width: 100%;
-        height: 100%;
-        border: 0;
-      }
-      .foot {
-        padding: 0 30px 28px;
-        font-size: calc(13px * var(--fs));
+      /* the embedded globe reports its own frame rate: the claim, measured on this screen */
+      .pulse {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        margin: 26px 0 0;
+        min-height: 1.5em;
+        font-size: calc(13.5px * var(--fs));
         color: var(--fg-muted);
-        max-width: 1240px;
-        width: 100%;
-        margin: 0 auto;
+        font-variant-numeric: tabular-nums;
       }
-      .foot a {
+      .pulse .blip {
+        flex: none;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--good);
+      }
+      .pulse[hidden] {
+        display: none;
+      }
+      .pulse[data-state='waiting'] .blip {
+        background: var(--fg-muted);
+      }
+      .pulse strong {
+        color: var(--fg);
+        font-weight: 600;
+      }
+
+      /* ---- sections ---- */
+      section.band {
+        padding: clamp(56px, 8vw, 104px) var(--gutter);
+        border-top: var(--bw) solid var(--line);
+      }
+      .band-in {
+        max-width: 1180px; /* left-aligned with the hero, so one edge runs down the page */
+      }
+      h2 {
+        margin: 0 0 14px;
+        font-size: clamp(26px, 3.2vw, 40px);
+        line-height: 1.08;
+        letter-spacing: -0.022em;
+        font-weight: 650;
+        text-wrap: balance;
+      }
+      .band .intro {
+        margin: 0 0 clamp(30px, 4vw, 52px);
+        max-width: var(--measure);
+        font-size: calc(16.5px * var(--fs));
+        line-height: 1.6;
+        color: var(--fg-muted);
+      }
+
+      /* what is on screen: a ledger of true statements, ruled, not boxed */
+      .ledger {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0 clamp(28px, 5vw, 72px);
+        margin: 0;
+      }
+      .ledger div {
+        padding: 20px 0 22px;
+        border-top: var(--bw) solid var(--line);
+      }
+      .ledger dt {
+        margin: 0 0 6px;
+        font-size: calc(17px * var(--fs));
+        font-weight: 600;
+      }
+      .ledger dd {
+        margin: 0;
+        max-width: 32rem;
+        font-size: calc(15px * var(--fs));
+        line-height: 1.6;
+        color: var(--fg-muted);
+      }
+
+      /* frame rate: one plain statement, then how */
+      .rate {
+        display: grid;
+        grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+        gap: clamp(28px, 6vw, 88px);
+        align-items: start;
+      }
+      .rate .intro {
+        margin-bottom: 0;
+      }
+      /* the embedded globe's own numbers: the frame budget and how much of it is used */
+      .gauge {
+        margin: 30px 0 0;
+        max-width: 26rem;
+        font-size: calc(14px * var(--fs));
+        font-variant-numeric: tabular-nums;
+      }
+      .gauge[hidden] {
+        display: none;
+      }
+      .gauge-bar {
+        height: 10px;
+        border: var(--bw) solid var(--panel-brd);
+        border-radius: var(--r-ctl);
+        overflow: hidden;
+      }
+      .gauge-fill {
+        width: 0;
+        height: 100%;
+        background: var(--accent);
+        transition: width 0.6s ease;
+      }
+      .gauge-read {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        margin: 9px 0 0;
+        color: var(--fg-muted);
+      }
+      .gauge-read b {
+        color: var(--fg);
+        font-weight: 600;
+      }
+      .how {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+      .how li {
+        padding: 16px 0 17px;
+        border-top: var(--bw) solid var(--line);
+        font-size: calc(15px * var(--fs));
+        line-height: 1.6;
+        color: var(--fg-muted);
+      }
+      .how li:last-child {
+        border-bottom: var(--bw) solid var(--line);
+      }
+      .how b {
+        color: var(--fg);
+        font-weight: 600;
+      }
+
+      /* embedding really is a sequence, so the steps are numbered */
+      .steps {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        counter-reset: step;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: clamp(22px, 3vw, 40px);
+      }
+      .steps li {
+        counter-increment: step;
+        min-width: 0;
+      }
+      .steps li::before {
+        content: counter(step);
+        display: grid;
+        place-items: center;
+        width: 30px;
+        height: 30px;
+        margin-bottom: 14px;
+        border: var(--bw) solid var(--accent);
+        border-radius: 50%;
+        color: var(--accent);
+        font-weight: 600;
+        font-size: calc(14px * var(--fs));
+        font-variant-numeric: tabular-nums;
+      }
+      .steps h3 {
+        margin: 0 0 6px;
+        font-size: calc(17px * var(--fs));
+        font-weight: 600;
+      }
+      .steps p {
+        margin: 0 0 14px;
+        font-size: calc(15px * var(--fs));
+        line-height: 1.6;
+        color: var(--fg-muted);
+      }
+      pre {
+        margin: 0;
+        padding: 14px 16px;
+        overflow-x: auto;
+        border: var(--bw) solid var(--panel-brd);
+        border-radius: var(--r-ctl);
+        background: var(--panel);
+        color: var(--ink);
+        font:
+          13px/1.6 ui-monospace,
+          'SF Mono',
+          Menlo,
+          Consolas,
+          monospace;
+        tab-size: 2;
+      }
+      code {
+        font:
+          0.92em ui-monospace,
+          'SF Mono',
+          Menlo,
+          Consolas,
+          monospace;
+      }
+
+      /* ---- footer ---- */
+      .foot {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: 10px 28px;
+        padding: 26px var(--gutter) 34px;
+        border-top: var(--bw) solid var(--line);
+        font-size: calc(13.5px * var(--fs));
+        color: var(--fg-muted);
+      }
+      .foot nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 22px;
+      }
+      .foot a:hover {
         color: var(--fg);
       }
-      @media (max-width: 900px) {
-        main {
-          grid-template-columns: 1fr;
-          gap: 32px;
-          padding-top: 24px;
+
+      @media (max-width: 940px) {
+        .hero {
+          display: block;
+          min-height: 0;
+          padding-top: 0;
         }
-        .frame {
-          order: -1;
-          max-height: 60vh;
+        .globe {
+          position: relative;
+          top: 0;
+          width: auto;
+          height: min(96vw, 62vh);
+          margin: -30px calc(var(--gutter) * -1) 8px;
+          -webkit-mask-image: linear-gradient(0deg, transparent 0, #000 18%);
+          -webkit-mask-composite: source-over;
+          mask-image: linear-gradient(0deg, transparent 0, #000 18%);
+          mask-composite: add;
+        }
+        .ledger,
+        .rate,
+        .steps {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .rate {
+          gap: 26px;
         }
       }
     </style>
@@ -196,43 +434,200 @@
         </div>
       </div>
       <nav aria-label="Project">
+        <a href="#embed">Embed</a>
         <a href="https://github.com/studio51/orbit/blob/main/docs/USAGE.md">Docs</a>
         <a href="https://github.com/studio51/orbit">GitHub</a>
       </nav>
     </header>
 
     <main>
-      <section>
-        <h1>Live activity, drawn across the Earth.</h1>
-        <p class="lede">
-          Orbit is a real-time 3D globe for hero sections and dashboards. Beams arc from cities to
-          your headquarters, the sun and the weather are real, and the whole scene changes character
-          in five looks.
-        </p>
+      <div class="hero">
+        <div class="globe">
+          <iframe
+            id="preview"
+            title="Orbit globe, live"
+            src="webgpu/index.html?embed&ticker=104"
+            allow="fullscreen"
+          ></iframe>
+        </div>
 
-        <nav class="looks lenses-static" id="looks" aria-label="Look"></nav>
-        <p id="blurb" aria-live="polite"></p>
+        <div class="pitch">
+          <h1>Live activity, drawn across the Earth.</h1>
+          <p class="lede">
+            Orbit is a real-time 3D globe for hero sections and dashboards. Every event becomes a
+            beam from its city to your headquarters, under the real sun, in five looks.
+          </p>
 
-        <div class="actions">
-          <a class="cta primary" id="open" href="webgpu/index.html?demo">Open the live demo</a>
-          <a class="cta" href="canvas/index.html?demo">Canvas version</a>
+          <nav class="looks lenses-static" id="looks" aria-label="Look"></nav>
+          <p id="blurb" aria-live="polite"></p>
+
+          <div class="actions">
+            <a class="cta primary" id="open" href="webgpu/index.html?demo">Open the live demo</a>
+            <a class="cta" href="#embed">Put it on your page</a>
+          </div>
+
+          <p class="pulse" id="pulse" data-state="waiting" aria-live="off">
+            <span class="blip" aria-hidden="true"></span>
+            <span id="pulse-text">Starting the globe</span>
+          </p>
+        </div>
+      </div>
+
+      <section class="band" aria-labelledby="h-screen">
+        <div class="band-in">
+          <h2 id="h-screen">What you are looking at</h2>
+          <p class="intro">
+            Nothing on the globe is a picture. It is all computed, and most of it is tied to
+            something real.
+          </p>
+
+          <dl class="ledger">
+            <div>
+              <dt>The sun is where it really is</dt>
+              <dd>
+                Day, night and the terminator come from the clock, so the lit side of the globe
+                matches the Earth right now.
+              </dd>
+            </div>
+            <div>
+              <dt>Every beam is one event</dt>
+              <dd>
+                An activity starts in a city facing you, arcs to your headquarters and lands with a
+                ring and a burst of sparks. The ticker names it as it flies.
+              </dd>
+            </div>
+            <div>
+              <dt>City lights follow your cities</dt>
+              <dd>
+                The night side lights up around the city list you give it, on land only, and dims
+                under cloud.
+              </dd>
+            </div>
+            <div>
+              <dt>Cities surge</dt>
+              <dd>
+                Now and then one city sends a rush of beams and the ticker calls it out, so the
+                scene never settles into a loop.
+              </dd>
+            </div>
+            <div>
+              <dt>Weather, aurora and a moon</dt>
+              <dd>
+                Clouds drift and cast shadows, the atmosphere reddens at sunset, curtains of aurora
+                ring both poles and the moon is lit by the same sun.
+              </dd>
+            </div>
+            <div>
+              <dt>Five looks, one scene</dt>
+              <dd>
+                Realistic, Cartoon, Neon, Hologram and Ink &amp; Paper share the same globe.
+                Switching cross-fades in about a second and re-dresses the interface with it.
+              </dd>
+            </div>
+          </dl>
         </div>
       </section>
 
-      <div class="frame">
-        <iframe
-          id="preview"
-          title="Orbit globe preview"
-          src="webgpu/index.html"
-          allow="autoplay"
-        ></iframe>
-      </div>
+      <section class="band" aria-labelledby="h-rate">
+        <div class="band-in rate">
+          <div>
+            <h2 id="h-rate">It holds your display's refresh rate</h2>
+            <p class="intro">
+              On a 120 Hz screen Orbit aims for 120 frames a second, and on a 60 Hz screen for 60.
+              It measures the display and the GPU, and when a frame would run long it gives up a
+              little resolution instead of dropping the frame. When there is room again, the
+              resolution comes back.
+            </p>
+
+            <div class="gauge" id="gauge" hidden>
+              <div
+                class="gauge-bar"
+                role="img"
+                aria-label="Share of the frame budget the GPU is using"
+              >
+                <div class="gauge-fill" id="gauge-fill"></div>
+              </div>
+              <p class="gauge-read">
+                <span>The globe above: <b id="gauge-gpu"></b> of GPU time</span>
+                <span>in a <b id="gauge-budget"></b> frame</span>
+              </p>
+            </div>
+          </div>
+
+          <ul class="how">
+            <li>
+              <b>Nothing expensive runs per frame.</b> Terrain, clouds, the moon and the aurora are
+              baked into textures once, on the GPU, when the page loads.
+            </li>
+            <li>
+              <b>Particles never touch the CPU.</b> About 40,000 drifting motes and every impact
+              spark are moved by compute passes.
+            </li>
+            <li>
+              <b>A beam costs nothing to keep alive.</b> Its whole flight runs in the shader from
+              the moment it was born.
+            </li>
+            <li>
+              <b>The sky is not shaded behind the planet.</b> Stars are 24,000 sprites, sharp at any
+              resolution, and the backdrop skips every pixel the globe covers.
+            </li>
+            <li>
+              <b>It degrades on purpose.</b> Where WebGPU is missing, the page hands over to a
+              Canvas 2D renderer and keeps your options.
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="band" id="embed" aria-labelledby="h-embed">
+        <div class="band-in">
+          <h2 id="h-embed">Put it on your page</h2>
+          <p class="intro">
+            Orbit is plain ES modules with no build step. Three.js, loaded from a CDN, is its only
+            dependency.
+          </p>
+
+          <ol class="steps">
+            <li>
+              <h3>Serve the folder</h3>
+              <p>Clone the repository and serve it from any static host.</p>
+              <pre><code>git clone https://github.com/studio51/orbit
+npx serve orbit</code></pre>
+            </li>
+            <li>
+              <h3>Embed the globe</h3>
+              <p>Frame the clean page. Add a look, or leave it off for Realistic.</p>
+              <pre><code>&lt;iframe
+  src="/orbit/webgpu/?embed&amp;look=neon"
+  title="Activity globe"&gt;
+&lt;/iframe&gt;</code></pre>
+            </li>
+            <li>
+              <h3>Make it yours</h3>
+              <p>
+                Set your headquarters, cities and activity types in <code>shared/data.js</code>,
+                then tune the scene.
+              </p>
+              <pre><code>window.__ORBIT_SCENE__ = {
+  look: 'ink',
+  clouds: 0.4,
+  aurora: false,
+};</code></pre>
+            </li>
+          </ol>
+        </div>
+      </section>
     </main>
 
-    <p class="foot">
-      Runs on WebGPU and falls back to Canvas 2D where it is unavailable. MIT licensed, © 2026
-      Studio51 Solutions.
-    </p>
+    <footer class="foot">
+      <span>MIT licensed, © 2026 Studio51 Solutions.</span>
+      <nav aria-label="More">
+        <a href="webgpu/index.html?demo">Live demo</a>
+        <a href="canvas/index.html?demo">Canvas version</a>
+        <a href="https://github.com/studio51/orbit/blob/main/docs/ARCHITECTURE.md">How it works</a>
+        <a href="https://github.com/studio51/orbit">GitHub</a>
+      </nav>
+    </footer>
 
     <script type="module">
       import { LOOKS } from './shared/looks.js';
@@ -241,6 +636,12 @@
       const preview = document.getElementById('preview');
       const blurb = document.getElementById('blurb');
       const open = document.getElementById('open');
+      const pulse = document.getElementById('pulse');
+      const pulseText = document.getElementById('pulse-text');
+      const gauge = document.getElementById('gauge');
+      const gaugeFill = document.getElementById('gauge-fill');
+      const gaugeGpu = document.getElementById('gauge-gpu');
+      const gaugeBudget = document.getElementById('gauge-budget');
       const show = (id) => {
         const look = LOOKS.find((l) => l.id === id);
 
@@ -260,6 +661,33 @@
       });
 
       blurb.textContent = LOOKS[0].blurb;
+
+      // The embedded globe reports what it is actually doing on this screen.
+      // The Canvas fallback does not report, so the line bows out if nothing arrives.
+      const quiet = setTimeout(() => (pulse.hidden = true), 15000);
+
+      window.addEventListener('message', (e) => {
+        if (e.origin !== location.origin || e.data?.orbit !== 'pace' || !e.data.fps) return;
+
+        clearTimeout(quiet);
+        pulse.hidden = false;
+
+        const { fps, scale, target, gpuMs } = e.data;
+        const res = scale >= 0.995 ? 'full resolution' : `${Math.round(scale * 100)}% resolution`;
+
+        pulse.dataset.state = 'live';
+        pulseText.innerHTML = `Running here at <strong>${fps} frames a second</strong>, ${res}`;
+
+        // GPU timings need a browser feature; without it the gauge simply stays away
+        if (!(gpuMs > 0) || !(target > 0)) return;
+
+        const budget = 1000 / target;
+
+        gauge.hidden = false;
+        gaugeFill.style.width = Math.min(100, (gpuMs / budget) * 100).toFixed(1) + '%';
+        gaugeGpu.textContent = gpuMs.toFixed(1) + ' ms';
+        gaugeBudget.textContent = budget.toFixed(1) + ' ms';
+      });
     </script>
   </body>
 </html>

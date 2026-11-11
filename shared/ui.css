@@ -421,7 +421,8 @@ body:not(.demo) .drawer {
   align-items: baseline;
   margin-bottom: 7px;
 }
-.ctrl-top label {
+.ctrl-top label,
+.ctrl-top > span:first-child {
   font-size: calc(13px * var(--fs));
   color: var(--muted);
 }
@@ -801,7 +802,7 @@ input[type='range']::-moz-range-thumb {
 /* ---------- ticker ---------- */
 .ticker {
   position: fixed;
-  top: 26px;
+  top: var(--ticker-top, 26px); /* a host page can lower it to clear its own header */
   right: 30px;
   z-index: 5;
   width: 292px;
@@ -858,12 +859,40 @@ input[type='range']::-moz-range-thumb {
   }
 }
 
-/* the ticker steps aside while the settings drawer is open */
+/* The ticker and the settings drawer share the right edge. While the drawer is open the
+   ticker bows out, so it never slides over the globe (the live feed still counts). */
+.ticker {
+  transition: opacity 0.25s ease;
+}
 body:has(.drawer:not([hidden])) .ticker {
-  right: 352px;
+  opacity: 0;
 }
 
-/* ---------- FPS meter ---------- */
+/* ---------- bare and embedded modes ---------- */
+/* `H` in the demo hides the interface for a clean look at the globe. */
+body.bare .panel,
+body.bare .drawer,
+body.bare .lenses,
+body.bare .ticker,
+body.bare .fps-meter,
+body.bare .brand {
+  opacity: 0;
+  pointer-events: none;
+}
+.panel,
+.drawer,
+.lenses,
+.fps-meter,
+.brand {
+  transition-property: opacity, background-color, border-color, box-shadow;
+  transition-duration: 0.25s, 0.6s, 0.6s, 0.6s;
+}
+/* `?embed`: the host page carries the brand, so the globe drops its own. */
+body.embed .brand {
+  display: none;
+}
+
+/* ---------- performance readout ---------- */
 .fps-meter {
   position: fixed;
   left: 50%;
@@ -871,32 +900,46 @@ body:has(.drawer:not([hidden])) .ticker {
   transform: translateX(-50%);
   z-index: 7;
   display: flex;
-  align-items: baseline;
-  gap: 6px;
-  padding: 7px 13px;
+  align-items: stretch;
+  padding: 0;
   border-radius: var(--r-ctl);
   pointer-events: none;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.fps-meter .fps-cell {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 7px 13px;
+  font-size: calc(12px * var(--fs));
+}
+.fps-meter[hidden],
+.fps-meter .fps-cell[hidden] {
+  display: none;
+}
+.fps-meter .fps-cell + .fps-cell {
+  border-left: var(--bw) solid var(--line);
 }
 .fps-meter .fps-num {
+  min-width: 2ch;
   font-size: calc(18px * var(--fs));
   font-weight: 650;
   color: var(--good);
+  text-align: right;
 }
 .fps-meter .fps-unit,
-.fps-meter .fps-ms {
-  font-size: calc(12px * var(--fs));
+.fps-meter .fps-target,
+.fps-meter .fps-lbl {
   color: var(--muted);
 }
-.fps-meter .fps-ms {
-  margin-left: 4px;
+.fps-meter .fps-ms,
+.fps-meter .fps-res {
+  font-weight: 600;
 }
 .fps-meter .fps-tag {
-  font-size: calc(12px * var(--fs));
   color: var(--accent);
-  margin-left: 8px;
-  padding-left: 8px;
-  border-left: var(--bw) solid var(--line);
+  font-weight: 600;
 }
 .fps-meter.warn .fps-num {
   color: #e0a21c;
@@ -934,6 +977,29 @@ body:has(.drawer:not([hidden])) .ticker {
 .load-err {
   color: #ef5b5b;
   line-height: 1.6;
+}
+#loading {
+  transition: opacity 0.5s ease;
+}
+#loading.done {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.panel .sc-seg {
+  margin-top: 7px;
+}
+.hint kbd {
+  display: inline-block;
+  min-width: 1.5em;
+  padding: 0 4px;
+  border: var(--bw) solid var(--line);
+  border-radius: 5px;
+  font: inherit;
+  font-size: 0.92em;
+  line-height: 1.5;
+  text-align: center;
+  color: var(--ink);
 }
 
 /* ---------- short screens ---------- */
@@ -996,6 +1062,13 @@ body:has(.drawer:not([hidden])) .ticker {
     left: auto;
     right: 14px;
     transform: none;
+  }
+  .fps-meter .fps-cell {
+    padding: 6px 9px;
+  }
+  .fps-meter .fps-tag,
+  .fps-meter .fps-lbl {
+    display: none;
   }
 }
 

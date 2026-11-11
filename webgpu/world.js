@@ -1,11 +1,12 @@
 /* Orbit: world data baker (WebGPU renderer)
  *
- * Turns the world-atlas TopoJSON into the three GPU textures the Earth shader
+ * Turns the world-atlas TopoJSON into the GPU textures the Earth shader
  * samples, with no D3 and no committed image assets:
  *
  *   landTex    R8    4096×2048  crisp land mask (equirectangular, row 0 = south)
  *   fieldTex   RGBA  1024×512   R: shelf blur (coast), G: broad blur, B: continentality
  *   lightsTex  R8    2048×1024  procedural night lights clustered around the city list
+ *   detailTex  RGBA  256×256    four independent tileable noise channels (waves, grain, erosion)
  *
  * Everything is derived at load time from the topology plus `CITIES`, so the
  * repo stays asset-free. The topology is fetched at runtime (first reachable
@@ -21,6 +22,7 @@ const FIELD_W = 1024; // blurred field resolution
 const FIELD_H = 512;
 const LIGHT_W = 2048; // night-lights resolution
 const LIGHT_H = 1024;
+const DETAIL = 256; // tileable detail-noise resolution (square)
 
 /**
  * Rasterize land polygons into an equirectangular mask.
@@ -233,19 +235,78 @@ function bakeLights(land, cities) {
 }
 
 /**
+ * Tileable fractal value noise, four independent channels.
+ * Every octave's lattice wraps at the tile edge, so the texture repeats without a seam.
+ * It replaces the per-pixel 3D noise the globe shader used for waves and surface grain.
+ *
+ * @param {number} size tile edge in texels
+ * @param {number} cells lattice cells across the tile for the first octave
+ * @param {number} octaves octave count
+ * @returns {Uint8Array} size×size RGBA texels
+ */
+function bakeDetail(size, cells = 8, octaves = 5) {
+  const out = new Uint8Array(size * size * 4);
+  const acc = new Float32Array(size * size);
+
+  for (let ch = 0; ch < 4; ch++) {
+    acc.fill(0);
+
+    let amp = 0.5,
+      norm = 0;
+
+    for (let o = 0; o < octaves; o++) {
+      const n = cells << o;
+      const rnd = mulberry32(977 + ch * 131 + o * 17);
+      const lattice = new Float32Array(n * n);
+
+      for (let i = 0; i < lattice.length; i++) lattice[i] = rnd();
+
+      for (let y = 0; y < size; y++) {
+        const fy = (y / size) * n,
+          y0 = Math.floor(fy),
+          ty = fy - y0;
+        const sy = ty * ty * (3 - 2 * ty);
+        const r0 = (y0 % n) * n,
+          r1 = ((y0 + 1) % n) * n;
+
+        for (let x = 0; x < size; x++) {
+          const fx = (x / size) * n,
+            x0 = Math.floor(fx),
+            tx = fx - x0;
+          const sx = tx * tx * (3 - 2 * tx);
+          const c0 = x0 % n,
+            c1 = (x0 + 1) % n;
+          const a = lattice[r0 + c0] + (lattice[r0 + c1] - lattice[r0 + c0]) * sx;
+          const b = lattice[r1 + c0] + (lattice[r1 + c1] - lattice[r1 + c0]) * sx;
+
+          acc[y * size + x] += (a + (b - a) * sy) * amp;
+        }
+      }
+      norm += amp;
+      amp *= 0.5;
+    }
+
+    for (let i = 0; i < acc.length; i++) out[i * 4 + ch] = Math.round((acc[i] / norm) * 255);
+  }
+
+  return out;
+}
+
+/**
  * Build a repeating, mip-mapped data texture.
  *
  * @param {Uint8Array} data texel data (row 0 = south)
  * @param {number} w width in texels
  * @param {number} h height in texels
  * @param {number} format a THREE texture format (RedFormat / RGBAFormat)
+ * @param {number} [wrapT] vertical wrap mode (defaults to clamp, for equirectangular maps)
  * @returns {THREE.DataTexture} the uploaded texture
  */
-function dataTexture(data, w, h, format) {
+function dataTexture(data, w, h, format, wrapT = THREE.ClampToEdgeWrapping) {
   const t = new THREE.DataTexture(data, w, h, format, THREE.UnsignedByteType);
 
   t.wrapS = THREE.RepeatWrapping;
-  t.wrapT = THREE.ClampToEdgeWrapping;
+  t.wrapT = wrapT;
   t.magFilter = THREE.LinearFilter;
   t.minFilter = THREE.LinearMipmapLinearFilter;
   t.generateMipmaps = true;
@@ -260,8 +321,8 @@ function dataTexture(data, w, h, format) {
  *
  * @param {object} topo a TopoJSON topology (see `fetchTopology`)
  * @param {Array<{lnglat: number[]}>} cities city list used to cluster the night lights
- * @returns {{landTex: THREE.DataTexture, fieldTex: THREE.DataTexture, lightsTex: THREE.DataTexture}}
- *   the three textures the Earth material samples
+ * @returns {{landTex: THREE.DataTexture, fieldTex: THREE.DataTexture, lightsTex: THREE.DataTexture,
+ *   detailTex: THREE.DataTexture}} the textures the Earth material samples
  */
 export function bakeWorld(topo, cities) {
   const land = rasterizeLand(decodeLand(topo));
@@ -282,5 +343,12 @@ export function bakeWorld(topo, cities) {
     landTex: dataTexture(land, LAND_W, LAND_H, THREE.RedFormat),
     fieldTex: dataTexture(field, FIELD_W, FIELD_H, THREE.RGBAFormat),
     lightsTex: dataTexture(bakeLights(land, cities), LIGHT_W, LIGHT_H, THREE.RedFormat),
+    detailTex: dataTexture(
+      bakeDetail(DETAIL),
+      DETAIL,
+      DETAIL,
+      THREE.RGBAFormat,
+      THREE.RepeatWrapping
+    ),
   };
 }

@@ -53,7 +53,9 @@ the weight is zero.
    [`webgpu/earth.js`](../webgpu/earth.js), the backdrop in
    [`webgpu/sky.js`](../webgpu/sky.js), and its beam, ring and spark styling in
    `beams.js`, `sparks.js` and `cosmos.js`. Branch order must match the order in
-   `LOOKS`.
+   `LOOKS`. The stars need no branch: `starBright`, `starSize`, `starCut` (the share
+   of the catalogue shown), `starFlat` (how far magnitudes are evened out),
+   `starTint` and the `star` colour style them from the look's data.
 3. Add a `html[data-look='<id>']` token block to [`shared/ui.css`](../shared/ui.css)
    so the interface follows.
 

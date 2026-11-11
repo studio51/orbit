@@ -25,12 +25,15 @@ export class OrbitRig {
    * @param {HTMLElement} args.element the element that receives pointer input
    * @param {object} args.sim live simulation settings (reads `paused`, `rotSpeed`)
    * @param {object} args.scene live scene settings (reads `parallax`)
+   * @param {boolean} [args.wheelZoom] zoom on the mouse wheel; off when embedded, so the
+   *   wheel keeps scrolling the host page
    */
-  constructor({ camera, element, sim, scene }) {
+  constructor({ camera, element, sim, scene, wheelZoom = true }) {
     this.camera = camera;
     this.element = element;
     this.sim = sim;
     this.scene = scene;
+    this.wheelZoom = wheelZoom;
 
     this.lng = 10; // longitude facing the camera (degrees)
     this.lat = 22; // latitude facing the camera (degrees)
@@ -184,6 +187,8 @@ export class OrbitRig {
     el.addEventListener(
       'wheel',
       (e) => {
+        if (!this.wheelZoom && !e.ctrlKey) return; // embedded: leave the wheel to the page
+
         e.preventDefault();
 
         this.#zoomBy(Math.exp(e.deltaY * 0.0012));

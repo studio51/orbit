@@ -29,12 +29,16 @@ bag of shared uniforms and one look state.
 ```
 load        topology (world-atlas 1:50m)  →  world.js
               • land mask 4096×2048, shelf / continentality blurs, procedural city lights
+              • a small tileable detail-noise texture (waves, grain, cloud erosion)
 bake once   bake.js, full-screen GPU passes into half-float targets
-              • land albedo + height, ocean colour, climate, cloud field, Milky Way, nebula
+              • land albedo + height, relief slope, ocean colour, climate, cloud field
+              • Milky Way, nebula, moon, aurora noise, paper grain
 every frame engine.js
               • clock, real sun position, camera rig, intro, surges, beam cadence
+              • frame governor: resolution scale from frame interval and GPU time
               • compute passes: spark integration, mote advection
-              • scene pass: sky, globe, clouds, atmosphere, beams, rings, sparks, cosmos
+              • scene pass: globe, moon, sky dome, stars, clouds, aurora, atmosphere,
+                beams, rings, sparks
               • post pass: bloom, chromatic fringe, scanlines, vignette, grain, tone map
 ```
 
@@ -42,10 +46,61 @@ every frame engine.js
 
 The biomes, relief, ocean colour and clouds never change from frame to frame, yet
 evaluating them as 3D noise per pixel cost roughly 180 noise octaves per fragment.
-`bake.js` evaluates them once on the GPU into equirectangular textures, so the
-per-frame globe shader only samples them. That change took the globe from 50 fps at
-the lowest adaptive quality to a steady 60 fps at full resolution on the same
-machine.
+`bake.js` evaluates them once on the GPU into textures, so the per-frame shaders only
+sample them.
+
+The rule now is absolute: **no per-frame shader evaluates noise**. One octave of 3D
+Perlin noise costs more than a millisecond per megapixel on an integrated GPU, and
+the last holdouts (wave normals and grain on the globe, the aurora, the moon, the
+paper backdrop) together cost more than the rest of the frame. Each has a baked
+replacement:
+
+- **Relief** uses a baked slope (the height's east and north derivatives). One sample
+  gives a smooth normal at any zoom, where screen-space derivatives of the height
+  gave a faceted surface.
+- **Waves, grain and cloud erosion** sample one 256×256 tileable noise texture built
+  on the CPU at load, scrolled and layered for motion.
+- **The aurora** scrolls through a baked noise texture whose horizontal axis is
+  longitude (sampled on a circle, so it wraps) and whose vertical axis is time.
+
+### The sky
+
+The backdrop is a camera-centred dome drawn last among the opaque objects with the
+depth test on, so no sky pixel is shaded behind the globe or the moon. Three.js draws
+`scene.backgroundNode` first and without a depth test, which shaded the whole screen.
+
+Stars are about 24,000 instanced sprites sized in CSS pixels. A star costs the few
+pixels it covers and stays sharp at any resolution; the per-pixel star lattice it
+replaced ran for every pixel on screen and was the most expensive shader in the
+frame.
+
+### Holding the frame rate
+
+`governor.js` holds the display's refresh rate by trading resolution, and gives the
+resolution back when there is room. `main.js` measures the refresh rate while the map
+downloads, and the governor keeps checking it, so a window dragged to a 120 Hz
+display is picked up.
+
+It uses two signals, because neither is enough alone:
+
+- **The frame interval** is the truth about what reached the screen, but it is locked
+  to the display. On a 60 Hz display a frame never arrives faster than 16.7 ms, so
+  the interval cannot show headroom. The old scaler used only this, and once it
+  stepped down it could never step back up.
+- **GPU time** (`gpu-clock.js`, from timestamp queries) shows headroom. The cost is
+  close to linear in pixels, so the governor jumps to the scale it predicts will fit
+  instead of creeping.
+
+When even the lowest scale cannot hold the display rate, the governor targets half of
+it (60 on a 120 Hz display) and lets the resolution recover under that budget. The
+settled scale is remembered, so a reload starts where the last visit ended. The logic
+is dependency-free and covered by `tests/governor.test.js` against a simulated
+display.
+
+The post chain keeps 4x multisampling but discards the multisampled buffers after the
+resolve (`storeMultisampledColorBuffer = false`). Storing them, the default, wrote
+hundreds of megabytes per frame at retina resolution. Bloom works at a resolution
+fixed in CSS pixels, since the glow is low frequency.
 
 ### Compute particles
 
@@ -79,7 +134,7 @@ no recompile. See [Looks](LOOKS.md).
 ES modules, no build step.
 
 ```
-index.html          landing page (live preview, look picker)
+index.html          landing page (the live globe as hero, look picker, embed guide)
 shared/             used by every renderer
   looks.js          the look definitions (dependency-free data)
   data.js           HQ, activity types, cities (the file you edit to customise)
@@ -90,12 +145,14 @@ shared/             used by every renderer
                     the 2D core (Canvas and legacy SVG) and small helpers
 webgpu/             the WebGPU renderer
   main.js           entry: scene resolution, UI wiring, fallback gate
-  engine.js         renderer, clock, sun, intro, surges, adaptive resolution
+  engine.js         renderer, clock, sun, intro, surges
+  governor.js       frame governor: holds the refresh rate by trading resolution
+  gpu-clock.js      GPU frame time from timestamp queries
   rig.js            orbit camera: drag, fling, zoom, parallax
   world.js          topology to land / shelf / light textures
-  bake.js           one-time GPU bakes of the static planet and sky
+  bake.js           one-time GPU bakes: planet, sky, moon, aurora noise, paper
   earth.js          globe, clouds, atmosphere
-  sky.js            stars, nebula, sun glare, per-look backdrops
+  sky.js            the sky dome (per-look backdrops, sun) and the star sprites
   beams.js          activity beams, impact rings, HQ beacon
   sparks.js         GPU compute particles
   cosmos.js         moon, orbit rings, shooting stars, aurora
@@ -137,3 +194,25 @@ These cost real debugging time, so they are written down here.
   NaN. Give them valid dummy values.
 - **Sampling across the longitude seam.** Derive 2D texture coordinates from the
   sphere's own continuous `uv`, not from `atan`, or the mip level jumps at the seam.
+
+## Measuring pitfalls
+
+Profiling this renderer went wrong in four ways before it went right.
+
+- **Waiting on the queue is not GPU time.** `device.queue.onSubmittedWorkDone()`
+  looks like a frame timer, and it tracks GPU time in a tight loop. In a vsync-locked
+  loop the browser batches the frame with its compositor, so it reads about 9 ms for
+  a frame the GPU finishes in 3. Use timestamp queries.
+- **Pass timings do not add up on a tile-based GPU.** Apple and most mobile GPUs
+  defer every pass and run them together, so each pass's timestamps span most of the
+  frame. The frame time is the longest pass, not the sum. An immediate-mode GPU runs
+  passes one after another, and there the sum is right. `gpu-clock.js` tells the two
+  apart.
+- **A lightly loaded GPU slows its clock.** The same frame reads slower when there is
+  room to spare, and Low Power Mode makes it worse. Treat GPU time as a hint: a
+  reading well inside the budget is trustworthy, a reading near it is not. The
+  governor only makes a confident climb on the former and probes on the latter.
+- **A manual render loop must advance the node frame.** Passes update once per node
+  frame. Calling `pipeline.render()` in a loop without
+  `renderer._nodes.nodeFrame.update()` redraws only the final quad and reports a
+  frame that costs nothing.
