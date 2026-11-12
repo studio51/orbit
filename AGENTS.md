@@ -36,9 +36,9 @@ at the end of this file says otherwise, it wins.
   `-c commit.gpgsign=false`). If signing fails, stop and fix it, or ask.
 - **Meaningful.** Conventional Commits (`feat:`, `fix:`, `docs:`, `chore:`,
   `refactor:`, `test:`, `perf:`, `build:`, `ci:`), the subject naming the
-  change in the imperative (`fix(auth): refresh expired tokens before
-  retrying`) and the body saying why. One logical change per commit, each
-  leaving the build green. Never `wip`, `fix stuff` or `address review`, and
+  change in the imperative and the body saying why, for example
+  `fix(auth): refresh expired tokens before retrying`. One logical change per
+  commit, each leaving the build green. Never `wip`, `fix stuff` or `address review`, and
   no `fixup!` commits: history is never rewritten, so get the commit right
   before you make it.
 - **Merge commits only.** Never squash, rebase, or force-push; bring in the
