@@ -1,0 +1,12 @@
+{
+  "owner": "studio51",
+  "name": "orbit",
+  "title": "Orbit",
+  "description": "a real-time 3D globe visualizing live activity as beams arcing across the Earth, extracted as a standalone widget",
+  "type": "plugin",
+  "stack": "js-vanilla",
+  "addons": [],
+  "license": "MIT",
+  "visibility": "public",
+  "standard": "common"
+}

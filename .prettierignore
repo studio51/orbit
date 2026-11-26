@@ -1,0 +1,12 @@
+# Studio51 standard: the files npx @studio51/create manages keep the
+# standard's formatting rather than this repo's Prettier config.
+.github/
+.githooks/
+.claude/
+.studio51.json
+AGENTS.md
+CLAUDE.md
+CODEX.md
+CURSOR.md
+CONTRIBUTING.md
+CODE_OF_CONDUCT.md
